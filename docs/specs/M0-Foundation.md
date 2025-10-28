@@ -1,7 +1,8 @@
 # Milestone 0: Foundation
 
-**Status:** Not Started
+**Status:** ✅ COMPLETE
 **Target:** Basic gateway infrastructure with stdio transport and policy-aware server discovery
+**Completed:** October 28, 2025
 
 ---
 
@@ -31,7 +32,7 @@ M0 establishes the foundational infrastructure for the Agent MCP Gateway. This m
 
 ### Project Structure Setup
 
-- [ ] Create project directory structure
+- [x] Create project directory structure
   ```
   agent-mcp-gateway/
   ├── src/
@@ -50,37 +51,37 @@ M0 establishes the foundational infrastructure for the Agent MCP Gateway. This m
   └── README.md
   ```
 
-- [ ] Initialize uv project
-  - [ ] Run `uv init` if not already initialized
-  - [ ] Configure `pyproject.toml` with Python 3.12+ requirement
-  - [ ] Add FastMCP 2.13.0.1+ as dependency: `uv add "fastmcp>=2.13.0.1"`
+- [x] Initialize uv project
+  - [x] Run `uv init` if not already initialized
+  - [x] Configure `pyproject.toml` with Python 3.12+ requirement
+  - [x] Add FastMCP 2.13.0.1+ as dependency: `uv add "fastmcp>=2.13.0.1"`
 
 ### Configuration Loading (src/config.py)
 
-- [ ] Implement MCP server configuration loader
-  - [ ] Create `load_mcp_config(path: str) -> dict` function
-  - [ ] Support standard MCPConfig format with `mcpServers` key
-  - [ ] Handle both stdio (command, args, env) and HTTP (url, headers) transports
-  - [ ] Support environment variable substitution (e.g., `${BRAVE_API_KEY}`)
-  - [ ] Validate required fields per transport type
-  - [ ] Add helpful error messages for malformed configs
+- [x] Implement MCP server configuration loader
+  - [x] Create `load_mcp_config(path: str) -> dict` function
+  - [x] Support standard MCPConfig format with `mcpServers` key
+  - [x] Handle both stdio (command, args, env) and HTTP (url, headers) transports
+  - [x] Support environment variable substitution (e.g., `${BRAVE_API_KEY}`)
+  - [x] Validate required fields per transport type
+  - [x] Add helpful error messages for malformed configs
 
-- [ ] Implement gateway rules configuration loader
-  - [ ] Create `load_gateway_rules(path: str) -> dict` function
-  - [ ] Load agent policy definitions with allow/deny rules
-  - [ ] Validate rules structure (agents, defaults)
-  - [ ] Support wildcard patterns in tool names (`get_*`, `*`)
-  - [ ] Validate hierarchical agent names (`team.role`)
+- [x] Implement gateway rules configuration loader
+  - [x] Create `load_gateway_rules(path: str) -> dict` function
+  - [x] Load agent policy definitions with allow/deny rules
+  - [x] Validate rules structure (agents, defaults)
+  - [x] Support wildcard patterns in tool names (`get_*`, `*`)
+  - [x] Validate hierarchical agent names (`team.role`)
 
-- [ ] Add configuration validation
-  - [ ] Verify all referenced servers in rules exist in mcp-servers.json
-  - [ ] Warn about undefined agents if `deny_on_missing_agent` is false
-  - [ ] Check for conflicting rules within same agent
+- [x] Add configuration validation
+  - [x] Verify all referenced servers in rules exist in mcp-servers.json
+  - [x] Warn about undefined agents if `deny_on_missing_agent` is false
+  - [x] Check for conflicting rules within same agent
 
-- [ ] Environment variable support
-  - [ ] Support `GATEWAY_MCP_CONFIG` for server config path
-  - [ ] Support `GATEWAY_RULES` for rules config path
-  - [ ] Provide sensible defaults (./config/mcp-servers.json, ./config/gateway-rules.json)
+- [x] Environment variable support
+  - [x] Support `GATEWAY_MCP_CONFIG` for server config path
+  - [x] Support `GATEWAY_RULES` for rules config path
+  - [x] Provide sensible defaults (./config/mcp-servers.json, ./config/gateway-rules.json)
 
 **Code Reference:**
 ```python
@@ -114,24 +115,24 @@ def _substitute_env_vars(obj):
 
 ### Policy Engine (src/policy.py)
 
-- [ ] Implement policy evaluation engine
-  - [ ] Create `PolicyEngine` class with rules dictionary
-  - [ ] Implement `can_access_server(agent_id: str, server: str) -> bool`
-  - [ ] Implement `can_access_tool(agent_id: str, server: str, tool: str) -> bool`
-  - [ ] Support wildcard matching for tool names
-  - [ ] Implement deny-before-allow precedence
+- [x] Implement policy evaluation engine
+  - [x] Create `PolicyEngine` class with rules dictionary
+  - [x] Implement `can_access_server(agent_id: str, server: str) -> bool`
+  - [x] Implement `can_access_tool(agent_id: str, server: str, tool: str) -> bool`
+  - [x] Support wildcard matching for tool names
+  - [x] Implement deny-before-allow precedence
 
-- [ ] Policy precedence implementation (CRITICAL - DO NOT CHANGE)
-  - [ ] 1. Check explicit deny rules first
-  - [ ] 2. Check explicit allow rules second
-  - [ ] 3. Check wildcard deny rules third
-  - [ ] 4. Check wildcard allow rules fourth
-  - [ ] 5. Apply default policy last
+- [x] Policy precedence implementation (CRITICAL - DO NOT CHANGE)
+  - [x] 1. Check explicit deny rules first
+  - [x] 2. Check explicit allow rules second
+  - [x] 3. Check wildcard deny rules third
+  - [x] 4. Check wildcard allow rules fourth
+  - [x] 5. Apply default policy last
 
-- [ ] Helper methods
-  - [ ] `get_allowed_servers(agent_id: str) -> list[str]`
-  - [ ] `get_allowed_tools(agent_id: str, server: str) -> list[str] | Literal["*"]`
-  - [ ] `get_policy_decision_reason(agent_id: str, operation: str) -> str`
+- [x] Helper methods
+  - [x] `get_allowed_servers(agent_id: str) -> list[str]`
+  - [x] `get_allowed_tools(agent_id: str, server: str) -> list[str] | Literal["*"]`
+  - [x] `get_policy_decision_reason(agent_id: str, operation: str) -> str`
 
 **Code Reference:**
 ```python
@@ -160,20 +161,20 @@ class PolicyEngine:
 
 ### Gateway Server (src/gateway.py)
 
-- [ ] Create main gateway server class
-  - [ ] Initialize `FastMCP` instance with name "Agent MCP Gateway"
-  - [ ] Store mcp_config in server state via `set_state()`
-  - [ ] Store gateway_rules in server state via `set_state()`
-  - [ ] Store PolicyEngine instance in server state
+- [x] Create main gateway server class
+  - [x] Initialize `FastMCP` instance with name "Agent MCP Gateway"
+  - [x] Store mcp_config in server state via `set_state()`
+  - [x] Store gateway_rules in server state via `set_state()`
+  - [x] Store PolicyEngine instance in server state
 
-- [ ] Implement `list_servers` tool
-  - [ ] Add `@gateway.tool` decorator
-  - [ ] Require `agent_id: str` parameter
-  - [ ] Extract allowed servers from PolicyEngine
-  - [ ] Filter mcp_config servers to only those agent can access
-  - [ ] Return list of server info dicts with: name, transport type
-  - [ ] Support optional `include_metadata: bool` parameter
-  - [ ] Include server description if available in config
+- [x] Implement `list_servers` tool
+  - [x] Add `@gateway.tool` decorator
+  - [x] Require `agent_id: str` parameter
+  - [x] Extract allowed servers from PolicyEngine
+  - [x] Filter mcp_config servers to only those agent can access
+  - [x] Return list of server info dicts with: name, transport type
+  - [x] Support optional `include_metadata: bool` parameter
+  - [x] Include server description if available in config
 
 **Code Reference:**
 ```python
@@ -226,20 +227,20 @@ async def list_servers(agent_id: str, ctx: Context, include_metadata: bool = Fal
 
 ### Audit Logging (src/audit.py)
 
-- [ ] Implement audit logger
-  - [ ] Create `AuditLogger` class
-  - [ ] Support JSON-formatted log entries
-  - [ ] Include timestamp, agent_id, operation, decision, latency_ms
-  - [ ] Write to file (configurable path via env var)
-  - [ ] Support log rotation
+- [x] Implement audit logger
+  - [x] Create `AuditLogger` class
+  - [x] Support JSON-formatted log entries
+  - [x] Include timestamp, agent_id, operation, decision, latency_ms
+  - [x] Write to file (configurable path via env var)
+  - [x] Support log rotation
 
-- [ ] Implement audit decorators/helpers
-  - [ ] `@audit_operation` decorator for tools
-  - [ ] Automatically capture operation start/end times
-  - [ ] Log policy decisions (ALLOW/DENY)
-  - [ ] Include rule that matched (for denials)
+- [x] Implement audit decorators/helpers
+  - [x] `@audit_operation` decorator for tools
+  - [x] Automatically capture operation start/end times
+  - [x] Log policy decisions (ALLOW/DENY)
+  - [x] Include rule that matched (for denials)
 
-- [ ] Define audit log schema
+- [x] Define audit log schema
   ```json
   {
     "timestamp": "2025-10-28T10:30:00Z",
@@ -282,14 +283,14 @@ class AuditLogger:
 
 ### Main Entry Point (main.py)
 
-- [ ] Create main entry point
-  - [ ] Load configurations from environment or defaults
-  - [ ] Initialize PolicyEngine with loaded rules
-  - [ ] Create gateway server instance
-  - [ ] Store configs and policy engine in gateway state
-  - [ ] Initialize AuditLogger
-  - [ ] Run gateway with stdio transport
-  - [ ] Handle graceful shutdown
+- [x] Create main entry point
+  - [x] Load configurations from environment or defaults
+  - [x] Initialize PolicyEngine with loaded rules
+  - [x] Create gateway server instance
+  - [x] Store configs and policy engine in gateway state
+  - [x] Initialize AuditLogger
+  - [x] Run gateway with stdio transport
+  - [x] Handle graceful shutdown
 
 **Code Reference:**
 ```python
@@ -328,7 +329,7 @@ if __name__ == "__main__":
 
 ### Example Configuration Files
 
-- [ ] Create example mcp-servers.json
+- [x] Create example mcp-servers.json
   ```json
   {
     "mcpServers": {
@@ -350,7 +351,7 @@ if __name__ == "__main__":
   }
   ```
 
-- [ ] Create example gateway-rules.json
+- [x] Create example gateway-rules.json
   ```json
   {
     "agents": {
@@ -384,18 +385,18 @@ if __name__ == "__main__":
 
 ### Testing
 
-- [ ] Create basic tests
-  - [ ] Test configuration loading
-  - [ ] Test policy engine with various scenarios
-  - [ ] Test list_servers tool with different agents
-  - [ ] Test audit logging captures events
-  - [ ] Test environment variable substitution
+- [x] Create basic tests
+  - [x] Test configuration loading
+  - [x] Test policy engine with various scenarios
+  - [x] Test list_servers tool with different agents
+  - [x] Test audit logging captures events
+  - [x] Test environment variable substitution
 
-- [ ] Create integration test
-  - [ ] Start gateway in test mode
-  - [ ] Connect client and call list_servers
-  - [ ] Verify correct servers returned for different agents
-  - [ ] Verify audit log entries created
+- [x] Create integration test
+  - [x] Start gateway in test mode
+  - [x] Connect client and call list_servers
+  - [x] Verify correct servers returned for different agents
+  - [x] Verify audit log entries created
 
 **Code Reference:**
 ```python
@@ -432,22 +433,22 @@ def test_policy_deny_before_allow():
 ## Success Criteria
 
 ### Functional Requirements
-- [ ] Gateway loads and validates both configuration files
-- [ ] `list_servers` tool returns only servers agent can access
-- [ ] Policy engine correctly applies deny-before-allow precedence
-- [ ] Audit log captures all operations with correct data
-- [ ] Gateway runs via stdio transport
+- [x] Gateway loads and validates both configuration files
+- [x] `list_servers` tool returns only servers agent can access
+- [x] Policy engine correctly applies deny-before-allow precedence
+- [x] Audit log captures all operations with correct data
+- [x] Gateway runs via stdio transport
 
 ### Performance Requirements
-- [ ] `list_servers` responds in <50ms (P95)
-- [ ] Configuration loading completes in <200ms
-- [ ] No memory leaks during extended operation
+- [x] `list_servers` responds in <50ms (P95)
+- [x] Configuration loading completes in <200ms
+- [x] No memory leaks during extended operation
 
 ### Quality Requirements
-- [ ] All code has type hints
-- [ ] Configuration validation provides clear error messages
-- [ ] Audit logs are properly formatted JSON
-- [ ] Example configs provided and tested
+- [x] All code has type hints
+- [x] Configuration validation provides clear error messages
+- [x] Audit logs are properly formatted JSON
+- [x] Example configs provided and tested
 
 ---
 
