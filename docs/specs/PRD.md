@@ -370,6 +370,7 @@ if "agent_id" not in params:
   - Tools: `https://gofastmcp.com/servers/tools`
   - Server Composition (importing & mounting servers): `https://gofastmcp.com/servers/composition`
   - MCP Client: `https://gofastmcp.com/clients/client`
+  - Context7 MCP Library ID: `jlowin/fastmcp`
 - **Model Context Protocol**
   - Lifecycle: `https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle`
   - Transports: `https://modelcontextprotocol.io/specification/2025-06-18/basic/transports`
