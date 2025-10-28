@@ -353,4 +353,16 @@ if "agent_id" not in params:
 
 ---
 
-**END OF PRD**
+## Key Documentation
+
+- **FastMCP 2.0**
+  - Proxy Servers (IMPORTANT): `https://gofastmcp.com/servers/proxy`
+  - Middleware (IMPORTANT): `https://gofastmcp.com/servers/middleware`
+  - Server: `https://gofastmcp.com/servers/server`
+  - Tools: `https://gofastmcp.com/servers/tools`
+  - Server Composition (importing & mounting servers): `https://gofastmcp.com/servers/composition`
+  - MCP Client: `https://gofastmcp.com/clients/client`
+- **Model Context Protocol**
+  - Lifecycle: `https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle`
+  - Transports: `https://modelcontextprotocol.io/specification/2025-06-18/basic/transports`
+  - Tools: `https://modelcontextprotocol.io/specification/2025-06-18/server/tools`
