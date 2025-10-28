@@ -1,0 +1,7 @@
+[project]
+name = "agent-mcp-gateway"
+version = "0.1.0"
+description = "An MCP gateway that aggregates your existing MCP servers and lets you define which servers and individual tools each agent or subagent can access. Solves Claude Code's MCP context window waste where all tool definitions load upfront instead of being discovered when actually needed."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["fastmcp>=2.13.0.1"]
