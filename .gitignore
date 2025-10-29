@@ -8,3 +8,29 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Configuration files with secrets (use .example files as templates)
+config/mcp-servers.json
+config/gateway-rules.json
+# Keep example and test configs
+!config/*.example
+!config/*.test.json
+
+# Logs and runtime data
+logs/
+*.log
+*.jsonl
+
+# Test and coverage reports
+.coverage
+htmlcov/
+.pytest_cache/
+*.cover
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store

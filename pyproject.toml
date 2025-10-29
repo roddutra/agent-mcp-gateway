@@ -3,12 +3,26 @@ name = "agent-mcp-gateway"
 version = "0.1.0"
 description = "An MCP gateway that aggregates your existing MCP servers and lets you define which servers and individual tools each agent or subagent can access. Solves Claude Code's MCP context window waste where all tool definitions load upfront instead of being discovered when actually needed."
 readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Rodrigo Franken Dutra" }]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "gateway",
+    "proxy",
+    "agent",
+    "fastmcp",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 requires-python = ">=3.12"
 dependencies = ["fastmcp>=2.13.0.1"]
 
 [dependency-groups]
-dev = [
-    "pytest>=8.4.2",
-    "pytest-asyncio>=1.2.0",
-    "pytest-cov>=7.0.0",
-]
+dev = ["pytest>=8.4.2", "pytest-asyncio>=1.2.0", "pytest-cov>=7.0.0"]
