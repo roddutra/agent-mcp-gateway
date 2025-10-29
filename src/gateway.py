@@ -3,7 +3,7 @@
 import asyncio
 import fnmatch
 import re
-from typing import Any
+from typing import Any, Optional
 
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
@@ -187,9 +187,9 @@ def _estimate_tool_tokens(tool: Any) -> int:
 async def get_server_tools(
     agent_id: str,
     server: str,
-    names: list[str] | None = None,
-    pattern: str | None = None,
-    max_schema_tokens: int | None = None
+    names: Optional[str] = None,
+    pattern: Optional[str] = None,
+    max_schema_tokens: Optional[int] = None
 ) -> dict:
     """Get tool definitions from a server, filtered by agent permissions and optional criteria.
 
@@ -200,7 +200,8 @@ async def get_server_tools(
     Args:
         agent_id: Identifier of the agent making the request
         server: Name of the server to query for tools
-        names: Optional list of specific tool names to retrieve
+        names: Optional comma-separated list of tool names (e.g., "tool1,tool2,tool3").
+               Leave empty/null for all tools. Single tool name also accepted.
         pattern: Optional wildcard pattern to match tool names (e.g., "get_*", "*_user")
         max_schema_tokens: Optional maximum tokens to return in tool schemas
 
@@ -213,8 +214,13 @@ async def get_server_tools(
         - tokens_used: Estimated tokens used (if max_schema_tokens specified)
         - error: Error message if operation failed (e.g., "Access denied", "Server unavailable")
 
-    Example:
+    Examples:
+        >>> # Get all tools matching a pattern
         >>> await get_server_tools("researcher", "brave-search", pattern="brave_*")
+
+        >>> # Get specific tools by name
+        >>> await get_server_tools("researcher", "brave-search",
+        ...                        names="brave_web_search,brave_local_search")
         {
             "tools": [
                 {
@@ -231,9 +237,18 @@ async def get_server_tools(
             "server": "brave-search",
             "total_available": 10,
             "returned": 2,
-            "tokens_used": 450
+            "tokens_used": null
         }
     """
+    # Parse comma-separated names string into list
+    names_list: Optional[list[str]] = None
+    if names is not None and names.strip():
+        # Split by comma and trim whitespace from each name
+        names_list = [name.strip() for name in names.split(",") if name.strip()]
+        # If we ended up with an empty list after filtering, treat as None
+        if not names_list:
+            names_list = None
+
     # Get configurations from module-level storage
     policy_engine = _policy_engine
     proxy_manager = _proxy_manager
@@ -310,7 +325,7 @@ async def get_server_tools(
         tool_name = tool.name if hasattr(tool, 'name') else str(tool)
 
         # Filter by explicit names list
-        if names is not None and tool_name not in names:
+        if names_list is not None and tool_name not in names_list:
             continue
 
         # Filter by wildcard pattern
@@ -352,7 +367,7 @@ async def _execute_tool_impl(
     server: str,
     tool: str,
     args: dict,
-    timeout_ms: int | None = None
+    timeout_ms: Optional[int] = None
 ) -> dict:
     """Execute a tool on a downstream MCP server with policy-based access control.
 

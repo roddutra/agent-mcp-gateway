@@ -308,7 +308,7 @@ Retrieves tool definitions from a specific MCP server, filtered by agent permiss
 **Parameters:**
 - `agent_id` (string, required) - Identifier of the agent
 - `server` (string, required) - Name of the downstream MCP server
-- `names` (list[string], optional) - Specific tool names to retrieve
+- `names` (string, optional) - Comma-separated list of tool names (e.g., `"tool1,tool2,tool3"`) or single tool name
 - `pattern` (string, optional) - Wildcard pattern for tool names (e.g., `"get_*"`)
 - `max_schema_tokens` (integer, optional) - Token budget limit for schemas
 
@@ -341,6 +341,13 @@ Retrieves tool definitions from a specific MCP server, filtered by agent permiss
 tools = await client.call_tool("get_server_tools", {
     "agent_id": "researcher",
     "server": "brave-search"
+})
+
+# Get specific tools by name (comma-separated)
+tools = await client.call_tool("get_server_tools", {
+    "agent_id": "researcher",
+    "server": "brave-search",
+    "names": "brave_web_search,brave_local_search"
 })
 
 # Get specific tools by pattern

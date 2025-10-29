@@ -898,7 +898,7 @@ class TestComponentIntegration:
 
     @pytest.mark.asyncio
     async def test_middleware_agent_extraction(self, gateway_rules, mcp_config):
-        """Test that middleware properly extracts and cleans agent_id."""
+        """Test that middleware properly extracts and stores agent_id."""
         policy_engine = PolicyEngine(gateway_rules)
         middleware = AgentAccessControl(policy_engine)
 
@@ -921,8 +921,9 @@ class TestComponentIntegration:
 
         # Mock call_next
         async def call_next(ctx):
-            # Verify agent_id was removed from arguments
-            assert "agent_id" not in ctx.message.arguments
+            # Verify agent_id is kept in arguments for gateway tools
+            assert "agent_id" in ctx.message.arguments
+            assert ctx.message.arguments["agent_id"] == "test_agent"
             assert "server" in ctx.message.arguments
             assert "other_arg" in ctx.message.arguments
             return {"success": True}
@@ -1183,7 +1184,7 @@ class TestEdgeCases:
         response = await get_server_tools(
             agent_id="researcher",
             server="brave-search",
-            names=["brave_web_search"]  # Only request this tool
+            names="brave_web_search"  # Only request this tool
         )
 
         assert response["returned"] == 1

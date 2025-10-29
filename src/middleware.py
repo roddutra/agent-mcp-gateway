@@ -40,7 +40,7 @@ class AgentAccessControl(Middleware):
         - Extracts agent_id from tool arguments
         - Validates agent identity based on default policy
         - Stores agent in context state for downstream tools
-        - Removes agent_id from arguments before forwarding
+        - Keeps agent_id in arguments (gateway tools need it)
         - Allows gateway tools to pass through (they do own auth)
 
         Args:
@@ -77,14 +77,15 @@ class AgentAccessControl(Middleware):
         if context.fastmcp_context:
             context.fastmcp_context.set_state("current_agent", agent_id)
 
-        # Remove agent_id from arguments before forwarding
-        # Gateway tools and downstream servers don't need this parameter
-        clean_arguments = {k: v for k, v in arguments.items() if k != "agent_id"}
-        tool_call.arguments = clean_arguments
+        # NOTE: We do NOT remove agent_id from arguments because the gateway
+        # tools (list_servers, get_server_tools, execute_tool) need it as
+        # a parameter to perform their authorization checks.
+        # If we ever add direct proxying to downstream servers in the future,
+        # we would need to remove it at that point.
 
         # Gateway tools (list_servers, get_server_tools, execute_tool) are
         # allowed through - they perform their own permission checks using
-        # the agent_id stored in context state
+        # the agent_id parameter
         return await call_next(context)
 
     async def on_list_tools(self, context: MiddlewareContext, call_next):

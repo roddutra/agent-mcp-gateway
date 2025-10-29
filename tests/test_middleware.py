@@ -85,8 +85,8 @@ class TestMiddlewareAgentExtraction:
         assert call_next.called
 
     @pytest.mark.asyncio
-    async def test_middleware_removes_agent_id(self):
-        """Test that middleware removes agent_id from arguments."""
+    async def test_middleware_keeps_agent_id(self):
+        """Test that middleware keeps agent_id in arguments for gateway tools."""
         rules = {
             "agents": {
                 "test_agent": {
@@ -117,8 +117,9 @@ class TestMiddlewareAgentExtraction:
         # Execute middleware
         await middleware.on_call_tool(context, call_next)
 
-        # Verify agent_id was removed but other arguments remain
-        assert "agent_id" not in tool_call.arguments
+        # Verify agent_id is kept (gateway tools need it) along with other arguments
+        assert "agent_id" in tool_call.arguments
+        assert tool_call.arguments["agent_id"] == "test_agent"
         assert tool_call.arguments["include_metadata"] is True
         assert tool_call.arguments["format"] == "json"
 
@@ -430,7 +431,9 @@ class TestMiddlewareEdgeCases:
         # Verify agent was stored correctly
         assert fastmcp_ctx.get_state("current_agent") == "agent-with-dashes_123"
         assert result == {"result": "ok"}
-        assert "agent_id" not in tool_call.arguments
+        # agent_id is kept in arguments for gateway tools
+        assert "agent_id" in tool_call.arguments
+        assert tool_call.arguments["agent_id"] == "agent-with-dashes_123"
         assert "foo" in tool_call.arguments
 
 
@@ -438,8 +441,8 @@ class TestMiddlewareMultipleArguments:
     """Test middleware with various argument combinations."""
 
     @pytest.mark.asyncio
-    async def test_middleware_preserves_all_other_arguments(self):
-        """Test that all non-agent_id arguments are preserved."""
+    async def test_middleware_preserves_all_arguments(self):
+        """Test that all arguments including agent_id are preserved."""
         rules = {
             "agents": {
                 "test": {"allow": {"servers": ["*"]}}
@@ -469,8 +472,9 @@ class TestMiddlewareMultipleArguments:
         # Execute middleware
         await middleware.on_call_tool(context, call_next)
 
-        # Verify only agent_id was removed
-        assert "agent_id" not in tool_call.arguments
+        # Verify all arguments are preserved (including agent_id)
+        assert "agent_id" in tool_call.arguments
+        assert tool_call.arguments["agent_id"] == "test"
         assert tool_call.arguments["server"] == "postgres"
         assert tool_call.arguments["tool"] == "query"
         assert tool_call.arguments["args"] == {"sql": "SELECT * FROM users"}
@@ -504,6 +508,6 @@ class TestMiddlewareMultipleArguments:
         # Execute middleware
         await middleware.on_call_tool(context, call_next)
 
-        # Verify arguments is now empty dict
-        assert tool_call.arguments == {}
+        # Verify agent_id is still present
+        assert tool_call.arguments == {"agent_id": "solo"}
         assert fastmcp_ctx.get_state("current_agent") == "solo"

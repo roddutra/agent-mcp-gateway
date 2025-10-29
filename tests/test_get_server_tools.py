@@ -272,7 +272,7 @@ class TestGetServerToolsFilterByNames:
         result = await get_server_tools(
             agent_id="test_agent",
             server="test_server",
-            names=["get_user"]
+            names="get_user"
         )
 
         assert result["total_available"] == 5
@@ -282,14 +282,14 @@ class TestGetServerToolsFilterByNames:
 
     @pytest.mark.asyncio
     async def test_filter_by_multiple_names(self, mock_policy_engine, mock_proxy_manager, sample_tools):
-        """Test filtering by multiple tool names."""
+        """Test filtering by multiple comma-separated tool names."""
         mock_proxy_manager.list_tools = AsyncMock(return_value=sample_tools)
         initialize_gateway(mock_policy_engine, {}, mock_proxy_manager)
 
         result = await get_server_tools(
             agent_id="test_agent",
             server="test_server",
-            names=["get_user", "create_user"]
+            names="get_user,create_user"
         )
 
         assert result["total_available"] == 5
@@ -308,7 +308,7 @@ class TestGetServerToolsFilterByNames:
         result = await get_server_tools(
             agent_id="test_agent",
             server="test_server",
-            names=["nonexistent_tool"]
+            names="nonexistent_tool"
         )
 
         assert result["total_available"] == 5
@@ -325,7 +325,7 @@ class TestGetServerToolsFilterByNames:
         result = await get_server_tools(
             agent_id="test_agent",
             server="test_server",
-            names=["delete_user", "get_user"]
+            names="delete_user,get_user"
         )
 
         assert result["returned"] == 2
@@ -650,7 +650,7 @@ class TestGetServerToolsCombinedFilters:
         result = await get_server_tools(
             agent_id="test_agent",
             server="test_server",
-            names=["get_user", "create_user"],
+            names="get_user,create_user",
             pattern="get_*"
         )
 
@@ -705,7 +705,7 @@ class TestGetServerToolsCombinedFilters:
         result = await get_server_tools(
             agent_id="test_agent",
             server="test_server",
-            names=["get_user", "delete_user", "update_user"],
+            names="get_user,delete_user,update_user",
             pattern="*_user",
             max_schema_tokens=50
         )
@@ -719,16 +719,17 @@ class TestGetServerToolsCombinedFilters:
         assert result["tokens_used"] <= 50
 
     @pytest.mark.asyncio
-    async def test_names_list_empty(self, mock_policy_engine, mock_proxy_manager, sample_tools):
-        """Test that empty names list returns no tools."""
+    async def test_names_string_empty(self, mock_policy_engine, mock_proxy_manager, sample_tools):
+        """Test that empty names string returns all tools (no filter)."""
         mock_proxy_manager.list_tools = AsyncMock(return_value=sample_tools)
         initialize_gateway(mock_policy_engine, {}, mock_proxy_manager)
 
         result = await get_server_tools(
             agent_id="test_agent",
             server="test_server",
-            names=[]
+            names=""
         )
 
-        assert result["returned"] == 0
-        assert len(result["tools"]) == 0
+        # Empty string means no filter - should return all tools
+        assert result["returned"] == 5
+        assert len(result["tools"]) == 5
