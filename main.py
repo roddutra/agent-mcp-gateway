@@ -40,6 +40,9 @@ def on_mcp_config_changed(config_path: str) -> None:
         config_path: Absolute path to the changed MCP config file
     """
     logger.info(f"MCP server configuration file changed: {config_path}")
+    # Also print to stderr so user definitely sees it
+    print(f"\n[HOT RELOAD] Detected change in MCP server config file: {config_path}", file=sys.stderr)
+    print(f"[HOT RELOAD] Reloading and validating new configuration...", file=sys.stderr)
 
     try:
         # Get the proxy_manager and gateway_rules_path from module globals
@@ -76,9 +79,12 @@ def on_mcp_config_changed(config_path: str) -> None:
 
                 if success:
                     logger.info("ProxyManager reloaded successfully")
+                    print(f"[HOT RELOAD] MCP server configuration reloaded successfully", file=sys.stderr)
+                    print(f"[HOT RELOAD] Proxy connections updated", file=sys.stderr)
                 else:
                     logger.error(f"ProxyManager reload failed: {reload_error}")
                     logger.info("Keeping existing proxy connections")
+                    print(f"[HOT RELOAD] ERROR: Failed to reload proxy manager: {reload_error}", file=sys.stderr)
             finally:
                 # Clean up the event loop
                 reload_loop.close()
@@ -101,6 +107,9 @@ def on_gateway_rules_changed(rules_path: str) -> None:
         rules_path: Absolute path to the changed gateway rules file
     """
     logger.info(f"Gateway rules configuration file changed: {rules_path}")
+    # Also print to stderr so user definitely sees it
+    print(f"\n[HOT RELOAD] Detected change in gateway rules file: {rules_path}", file=sys.stderr)
+    print(f"[HOT RELOAD] Reloading and validating new rules...", file=sys.stderr)
 
     try:
         # Get the policy_engine and mcp_config_path from module globals
@@ -125,9 +134,13 @@ def on_gateway_rules_changed(rules_path: str) -> None:
         success, reload_error = _policy_engine.reload(gateway_rules)
         if success:
             logger.info("PolicyEngine reloaded successfully")
+            # Also print to stderr so user definitely sees it
+            print(f"\n[HOT RELOAD] Gateway rules reloaded successfully at {rules_path}", file=sys.stderr)
+            print(f"[HOT RELOAD] Policy changes are now active", file=sys.stderr)
         else:
             logger.error(f"PolicyEngine reload failed: {reload_error}")
             logger.info("Keeping existing policy rules")
+            print(f"\n[HOT RELOAD] ERROR: Failed to reload gateway rules: {reload_error}", file=sys.stderr)
 
     except Exception as e:
         logger.error(f"Unexpected error reloading gateway rules: {e}", exc_info=True)
