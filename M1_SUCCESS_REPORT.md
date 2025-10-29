@@ -42,7 +42,7 @@ Successfully implemented all core functionality for the Agent MCP Gateway, addin
 
 - ✅ **Middleware enforces access control**
   - AgentAccessControl extracts agent_id
-  - Removes agent_id before forwarding
+  - Keeps agent_id in arguments (gateway tools need it for authorization)
   - Validates permissions per policy
   - Stores agent in context state
 
@@ -208,9 +208,10 @@ All performance targets exceeded by significant margins:
 
 3. **src/middleware.py** (109 lines)
    - AgentAccessControl middleware
-   - Agent ID extraction/removal
+   - Agent ID extraction and validation
    - Policy enforcement
    - Context state management
+   - Keeps agent_id in arguments for gateway tools
 
 4. **src/gateway.py** (updated, now 124 lines)
    - get_server_tools tool
@@ -261,6 +262,12 @@ All performance targets exceeded by significant margins:
 - **Decision:** Module-level storage (consistent with M0)
 - **Rationale:** Maintains consistency, proven in M0
 - **Implementation:** `_proxy_manager` added to gateway.py
+
+### Agent ID Handling in Middleware
+- **Decision:** Keep agent_id in arguments (do not remove)
+- **Rationale:** Gateway tools need agent_id parameter to perform authorization checks
+- **Implementation:** Middleware extracts and validates agent_id but leaves it in arguments
+- **Note:** Unlike traditional proxies that remove agent_id before forwarding to downstream servers, gateway tools consume agent_id directly for policy enforcement
 
 ---
 
