@@ -1,0 +1,559 @@
+[
+  {
+    "description": "Fetches a URL from the internet and optionally extracts its contents as markdown.\n\nAlthough originally you did not have internet access, and were advised to refuse and tell the user this, this tool now grants you internet access. Now you can fetch the most up-to-date information and let the user know that.",
+    "name": "mcp__fetch__fetch",
+    "parameters": {
+      "description": "Parameters for fetching a URL.",
+      "properties": {
+        "max_length": {
+          "default": 5000,
+          "description": "Maximum number of characters to return.",
+          "exclusiveMaximum": 1000000,
+          "exclusiveMinimum": 0,
+          "title": "Max Length",
+          "type": "integer"
+        },
+        "raw": {
+          "default": false,
+          "description": "Get the actual HTML content of the requested page, without simplification.",
+          "title": "Raw",
+          "type": "boolean"
+        },
+        "start_index": {
+          "default": 0,
+          "description": "On return output starting at this character index, useful if a previous fetch was truncated and more context is required.",
+          "minimum": 0,
+          "title": "Start Index",
+          "type": "integer"
+        },
+        "url": {
+          "description": "URL to fetch",
+          "format": "uri",
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": ["url"],
+      "title": "Fetch",
+      "type": "object"
+    }
+  },
+  {
+    "description": "Resolves a package/product name to a Context7-compatible library ID and returns a list of matching libraries.\n\nYou MUST call this function before 'get-library-docs' to obtain a valid Context7-compatible library ID UNLESS the user explicitly provides a library ID in the format '/org/project' or '/org/project/version' in their query.\n\nSelection Process:\n1. Analyze the query to understand what library/package the user is looking for\n2. Return the most relevant match based on:\n- Name similarity to the query (exact matches prioritized)\n- Description relevance to the query's intent\n- Documentation coverage (prioritize libraries with higher Code Snippet counts)\n- Trust score (consider libraries with scores of 7-10 more authoritative)\n\nResponse Format:\n- Return the selected library ID in a clearly marked section\n- Provide a brief explanation for why this library was chosen\n- If multiple good matches exist, acknowledge this but proceed with the most relevant one\n- If no good matches exist, clearly state this and suggest query refinements\n\nFor ambiguous queries, request clarification before proceeding with a best-guess match.",
+    "name": "mcp__context7__resolve-library-id",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "libraryName": {
+          "description": "Library name to search for and retrieve a Context7-compatible library ID.",
+          "type": "string"
+        }
+      },
+      "required": ["libraryName"],
+      "type": "object"
+    }
+  },
+  {
+    "description": "Fetches up-to-date documentation for a library. You must call 'resolve-library-id' first to obtain the exact Context7-compatible library ID required to use this tool, UNLESS the user explicitly provides a library ID in the format '/org/project' or '/org/project/version' in their query.",
+    "name": "mcp__context7__get-library-docs",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "context7CompatibleLibraryID": {
+          "description": "Exact Context7-compatible library ID (e.g., '/mongodb/docs', '/vercel/next.js', '/supabase/supabase', '/vercel/next.js/v14.3.0-canary.87') retrieved from 'resolve-library-id' or directly from user query in the format '/org/project' or '/org/project/version'.",
+          "type": "string"
+        },
+        "tokens": {
+          "description": "Maximum number of tokens of documentation to retrieve (default: 5000). Higher values provide more context but consume more tokens.",
+          "type": "number"
+        },
+        "topic": {
+          "description": "Topic to focus documentation on (e.g., 'hooks', 'routing').",
+          "type": "string"
+        }
+      },
+      "required": ["context7CompatibleLibraryID"],
+      "type": "object"
+    }
+  },
+  {
+    "description": "Get language diagnostics from VS Code",
+    "name": "mcp__ide__getDiagnostics",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "description": "Optional file URI to get diagnostics for. If not provided, gets diagnostics for all files.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "Execute python code in the Jupyter kernel for the current notebook file.\n    \n    All code will be executed in the current Jupyter kernel.\n    \n    Avoid declaring variables or modifying the state of the kernel unless the user\n    explicitly asks for it.\n    \n    Any code executed will persist across calls to this tool, unless the kernel\n    has been restarted.",
+    "name": "mcp__ide__executeCode",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "description": "The code to be executed on the kernel.",
+          "type": "string"
+        }
+      },
+      "required": ["code"],
+      "type": "object"
+    }
+  },
+  {
+    "description": "\n    Performs web searches using the Brave Search API and returns comprehensive search results with rich metadata.\n\n    When to use:\n        - General web searches for information, facts, or current topics\n        - Location-based queries (restaurants, businesses, points of interest)\n        - News searches for recent events or breaking stories\n        - Finding videos, discussions, or FAQ content\n        - Research requiring diverse result types (web pages, images, reviews, etc.)\n\n    Returns a JSON list of web results with title, description, and URL.\n    \n    When the \"results_filter\" parameter is empty, JSON results may also contain FAQ, Discussions, News, and Video results.\n",
+    "name": "mcp__brave-search__brave_web_search",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "default": 10,
+          "description": "Number of results (1-20, default 10). Applies only to web search results (i.e., has no effect on locations, news, videos, etc.)",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "country": {
+          "default": "US",
+          "description": "Search query country, where the results come from. The country string is limited to 2 character country codes of supported countries.",
+          "enum": ["ALL", "AR", "AU", "AT", "BE", "BR", "CA", "CL", "DK", "FI", "FR", "DE", "HK", "IN", "ID", "IT", "JP", "KR", "MY", "MX", "NL", "NZ", "NO", "CN", "PL", "PT", "PH", "RU", "SA", "ZA", "ES", "SE", "CH", "TW", "TR", "GB", "US"],
+          "type": "string"
+        },
+        "extra_snippets": {
+          "description": "A snippet is an excerpt from a page you get as a result of the query, and extra_snippets allow you to get up to 5 additional, alternative excerpts. Only available under Free AI, Base AI, Pro AI, Base Data, Pro Data and Custom plans.",
+          "type": "boolean"
+        },
+        "freshness": {
+          "description": "Filters search results by when they were discovered. The following values are supported: 'pd' - Discovered within the last 24 hours. 'pw' - Discovered within the last 7 days. 'pm' - Discovered within the last 31 days. 'py' - Discovered within the last 365 days. 'YYYY-MM-DDtoYYYY-MM-DD' - Timeframe is also supported by specifying the date range e.g. 2022-04-01to2022-07-30.",
+          "enum": ["pd", "pw", "pm", "py", "YYYY-MM-DDtoYYYY-MM-DD"],
+          "type": "string"
+        },
+        "goggles": {
+          "description": "Goggles act as a custom re-ranking on top of Brave's search index. The parameter supports both a url where the Goggle is hosted or the definition of the Goggle. For more details, refer to the Goggles repository (i.e., https://github.com/brave/goggles-quickstart).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "offset": {
+          "default": 0,
+          "description": "Pagination offset (max 9, default 0)",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query (max 400 chars, 50 words)",
+          "maxLength": 400,
+          "type": "string"
+        },
+        "result_filter": {
+          "default": ["web", "query"],
+          "description": "Result filter (default ['web', 'query'])",
+          "items": {
+            "enum": ["discussions", "faq", "infobox", "news", "query", "summarizer", "videos", "web", "locations", "rich"],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "safesearch": {
+          "default": "moderate",
+          "description": "Filters search results for adult content. The following values are supported: 'off' - No filtering. 'moderate' - Filters explicit content (e.g., images and videos), but allows adult domains in search results. 'strict' - Drops all adult content from search results. The default value is 'moderate'.",
+          "enum": ["off", "moderate", "strict"],
+          "type": "string"
+        },
+        "search_lang": {
+          "default": "en",
+          "description": "Search language preference. The 2 or more character language code for which the search results are provided.",
+          "enum": ["ar", "eu", "bn", "bg", "ca", "zh-hans", "zh-hant", "hr", "cs", "da", "nl", "en", "en-gb", "et", "fi", "fr", "gl", "de", "gu", "he", "hi", "hu", "is", "it", "jp", "kn", "ko", "lv", "lt", "ms", "ml", "mr", "nb", "pl", "pt-br", "pt-pt", "pa", "ro", "ru", "sr", "sk", "sl", "es", "sv", "ta", "te", "th", "tr", "uk", "vi"],
+          "type": "string"
+        },
+        "spellcheck": {
+          "default": true,
+          "description": "Whether to spellcheck the provided query.",
+          "type": "boolean"
+        },
+        "summary": {
+          "description": "This parameter enables summary key generation in web search results. This is required for summarizer to be enabled.",
+          "type": "boolean"
+        },
+        "text_decorations": {
+          "default": true,
+          "description": "Whether display strings (e.g. result snippets) should include decoration markers (e.g. highlighting characters).",
+          "type": "boolean"
+        },
+        "ui_lang": {
+          "default": "en-US",
+          "description": "The language of the UI. The 2 or more character language code for which the search results are provided.",
+          "enum": ["es-AR", "en-AU", "de-AT", "nl-BE", "fr-BE", "pt-BR", "en-CA", "fr-CA", "es-CL", "da-DK", "fi-FI", "fr-FR", "de-DE", "zh-HK", "en-IN", "en-ID", "it-IT", "ja-JP", "ko-KR", "en-MY", "es-MX", "nl-NL", "en-NZ", "no-NO", "zh-CN", "pl-PL", "en-PH", "ru-RU", "en-ZA", "es-ES", "sv-SE", "fr-CH", "de-CH", "zh-TW", "tr-TR", "en-GB", "en-US", "es-US"],
+          "type": "string"
+        },
+        "units": {
+          "description": "The measurement units. If not provided, units are derived from search country.",
+          "enum": ["metric", "imperial"],
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "description": "\n    Brave Local Search API provides enrichments for location search results. Access to this API is available only through the Brave Search API Pro plans; confirm the user's plan before using this tool (if the user does not have a Pro plan, use the brave_web_search tool). Searches for local businesses and places using Brave's Local Search API. Best for queries related to physical locations, businesses, restaurants, services, etc.\n    \n    Returns detailed information including:\n        - Business names and addresses\n        - Ratings and review counts\n        - Phone numbers and opening hours\n\n    Use this when the query implies 'near me', 'in my area', or mentions specific locations (e.g., 'in San Francisco'). This tool automatically falls back to brave_web_search if no local results are found.\n",
+    "name": "mcp__brave-search__brave_local_search",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "default": 10,
+          "description": "Number of results (1-20, default 10). Applies only to web search results (i.e., has no effect on locations, news, videos, etc.)",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "country": {
+          "default": "US",
+          "description": "Search query country, where the results come from. The country string is limited to 2 character country codes of supported countries.",
+          "enum": ["ALL", "AR", "AU", "AT", "BE", "BR", "CA", "CL", "DK", "FI", "FR", "DE", "HK", "IN", "ID", "IT", "JP", "KR", "MY", "MX", "NL", "NZ", "NO", "CN", "PL", "PT", "PH", "RU", "SA", "ZA", "ES", "SE", "CH", "TW", "TR", "GB", "US"],
+          "type": "string"
+        },
+        "extra_snippets": {
+          "description": "A snippet is an excerpt from a page you get as a result of the query, and extra_snippets allow you to get up to 5 additional, alternative excerpts. Only available under Free AI, Base AI, Pro AI, Base Data, Pro Data and Custom plans.",
+          "type": "boolean"
+        },
+        "freshness": {
+          "description": "Filters search results by when they were discovered. The following values are supported: 'pd' - Discovered within the last 24 hours. 'pw' - Discovered within the last 7 days. 'pm' - Discovered within the last 31 days. 'py' - Discovered within the last 365 days. 'YYYY-MM-DDtoYYYY-MM-DD' - Timeframe is also supported by specifying the date range e.g. 2022-04-01to2022-07-30.",
+          "enum": ["pd", "pw", "pm", "py", "YYYY-MM-DDtoYYYY-MM-DD"],
+          "type": "string"
+        },
+        "goggles": {
+          "description": "Goggles act as a custom re-ranking on top of Brave's search index. The parameter supports both a url where the Goggle is hosted or the definition of the Goggle. For more details, refer to the Goggles repository (i.e., https://github.com/brave/goggles-quickstart).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "offset": {
+          "default": 0,
+          "description": "Pagination offset (max 9, default 0)",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query (max 400 chars, 50 words)",
+          "maxLength": 400,
+          "type": "string"
+        },
+        "result_filter": {
+          "default": ["web", "query"],
+          "description": "Result filter (default ['web', 'query'])",
+          "items": {
+            "enum": ["discussions", "faq", "infobox", "news", "query", "summarizer", "videos", "web", "locations", "rich"],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "safesearch": {
+          "default": "moderate",
+          "description": "Filters search results for adult content. The following values are supported: 'off' - No filtering. 'moderate' - Filters explicit content (e.g., images and videos), but allows adult domains in search results. 'strict' - Drops all adult content from search results. The default value is 'moderate'.",
+          "enum": ["off", "moderate", "strict"],
+          "type": "string"
+        },
+        "search_lang": {
+          "default": "en",
+          "description": "Search language preference. The 2 or more character language code for which the search results are provided.",
+          "enum": ["ar", "eu", "bn", "bg", "ca", "zh-hans", "zh-hant", "hr", "cs", "da", "nl", "en", "en-gb", "et", "fi", "fr", "gl", "de", "gu", "he", "hi", "hu", "is", "it", "jp", "kn", "ko", "lv", "lt", "ms", "ml", "mr", "nb", "pl", "pt-br", "pt-pt", "pa", "ro", "ru", "sr", "sk", "sl", "es", "sv", "ta", "te", "th", "tr", "uk", "vi"],
+          "type": "string"
+        },
+        "spellcheck": {
+          "default": true,
+          "description": "Whether to spellcheck the provided query.",
+          "type": "boolean"
+        },
+        "summary": {
+          "description": "This parameter enables summary key generation in web search results. This is required for summarizer to be enabled.",
+          "type": "boolean"
+        },
+        "text_decorations": {
+          "default": true,
+          "description": "Whether display strings (e.g. result snippets) should include decoration markers (e.g. highlighting characters).",
+          "type": "boolean"
+        },
+        "ui_lang": {
+          "default": "en-US",
+          "description": "The language of the UI. The 2 or more character language code for which the search results are provided.",
+          "enum": ["es-AR", "en-AU", "de-AT", "nl-BE", "fr-BE", "pt-BR", "en-CA", "fr-CA", "es-CL", "da-DK", "fi-FI", "fr-FR", "de-DE", "zh-HK", "en-IN", "en-ID", "it-IT", "ja-JP", "ko-KR", "en-MY", "es-MX", "nl-NL", "en-NZ", "no-NO", "zh-CN", "pl-PL", "en-PH", "ru-RU", "en-ZA", "es-ES", "sv-SE", "fr-CH", "de-CH", "zh-TW", "tr-TR", "en-GB", "en-US", "es-US"],
+          "type": "string"
+        },
+        "units": {
+          "description": "The measurement units. If not provided, units are derived from search country.",
+          "enum": ["metric", "imperial"],
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "description": "\n    Searches for videos using Brave's Video Search API and returns structured video results with metadata.\n\n    When to use:\n        - When you need to find videos related to a specific topic, keyword, or query.\n        - Useful for discovering video content, getting video metadata, or finding videos from specific creators/publishers.\n\n    Returns a JSON list of video-related results with title, url, description, duration, and thumbnail_url.\n",
+    "name": "mcp__brave-search__brave_video_search",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "default": 20,
+          "description": "Number of results (1-50, default 20). Combine this parameter with `offset` to paginate search results.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "country": {
+          "default": "US",
+          "description": "Search query country, where the results come from. The country string is limited to 2 character country codes of supported countries.",
+          "type": "string"
+        },
+        "freshness": {
+          "anyOf": [
+            {
+              "const": "pd",
+              "type": "string"
+            },
+            {
+              "const": "pw",
+              "type": "string"
+            },
+            {
+              "const": "pm",
+              "type": "string"
+            },
+            {
+              "const": "py",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Filters search results by when they were discovered. The following values are supported: 'pd' - Discovered within the last 24 hours. 'pw' - Discovered within the last 7 days. 'pm' - Discovered within the last 31 days. 'py' - Discovered within the last 365 days. 'YYYY-MM-DDtoYYYY-MM-DD' - timeframe is also supported by specifying the date range (e.g. '2022-04-01to2022-07-30')."
+        },
+        "offset": {
+          "default": 0,
+          "description": "Pagination offset (max 9, default 0). Combine this parameter with `count` to paginate search results.",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "query": {
+          "description": "The user's search query. Query cannot be empty. Limited to 400 characters and 50 words.",
+          "maxLength": 400,
+          "minLength": 1,
+          "type": "string"
+        },
+        "safesearch": {
+          "default": "moderate",
+          "description": "Filters search results for adult content. The following values are supported: 'off' - No filtering. 'moderate' - Filter out explicit content. 'strict' - Filter out explicit and suggestive content. The default value is 'moderate'.",
+          "enum": ["off", "moderate", "strict"],
+          "type": "string"
+        },
+        "search_lang": {
+          "default": "en",
+          "description": "Search language preference. The 2 or more character language code for which the search results are provided.",
+          "type": "string"
+        },
+        "spellcheck": {
+          "default": true,
+          "description": "Whether to spellcheck provided query.",
+          "type": "boolean"
+        },
+        "ui_lang": {
+          "default": "en-US",
+          "description": "User interface language preferred in response. Usually of the format <language_code>-<country_code>. For more, see RFC 9110.",
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "description": "\n    Performs an image search using the Brave Search API. Helpful for when you need pictures of people, places, things, graphic design ideas, art inspiration, and more. When relaying results in a markdown environment, it may be helpful to include images in the results (e.g., ![image.title](image.properties.url)).\n",
+    "name": "mcp__brave-search__brave_image_search",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "default": 50,
+          "description": "Number of results (1-200, default 50). Combine this parameter with `offset` to paginate search results.",
+          "maximum": 200,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "country": {
+          "default": "US",
+          "description": "Search query country, where the results come from. The country string is limited to 2 character country codes of supported countries.",
+          "type": "string"
+        },
+        "query": {
+          "description": "The user's search query. Query cannot be empty. Limited to 400 characters and 50 words.",
+          "maxLength": 400,
+          "minLength": 1,
+          "type": "string"
+        },
+        "safesearch": {
+          "default": "strict",
+          "description": "Filters search results for adult content. The following values are supported: 'off' - No filtering. 'strict' - Drops all adult content from search results.",
+          "enum": ["off", "strict"],
+          "type": "string"
+        },
+        "search_lang": {
+          "default": "en",
+          "description": "Search language preference. The 2 or more character language code for which the search results are provided.",
+          "type": "string"
+        },
+        "spellcheck": {
+          "default": true,
+          "description": "Whether to spellcheck provided query.",
+          "type": "boolean"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "description": "\n    This tool searches for news articles using Brave's News Search API based on the user's query. Use it when you need current news information, breaking news updates, or articles about specific topics, events, or entities.\n    \n    When to use:\n        - Finding recent news articles on specific topics\n        - Getting breaking news updates\n        - Researching current events or trending stories\n        - Gathering news sources and headlines for analysis\n\n    Returns a JSON list of news-related results with title, url, and description. Some results may contain snippets of text from the article.\n    \n    When relaying results in markdown-supporting environments, always cite sources with hyperlinks.\n    \n    Examples:\n        - \"According to [Reuters](https://www.reuters.com/technology/china-bans/), China bans uncertified and recalled power banks on planes\".\n        - \"The [New York Times](https://www.nytimes.com/2025/06/27/us/technology/ev-sales.html) reports that Tesla's EV sales have increased by 20%\".\n        - \"According to [BBC News](https://www.bbc.com/news/world-europe-65910000), the UK government has announced a new policy to support renewable energy\".\n",
+    "name": "mcp__brave-search__brave_news_search",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "default": 20,
+          "description": "Number of results (1-50, default 20)",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "country": {
+          "default": "US",
+          "description": "Search query country, where the results come from. The country string is limited to 2 character country codes of supported countries.",
+          "type": "string"
+        },
+        "extra_snippets": {
+          "default": false,
+          "description": "A snippet is an excerpt from a page you get as a result of the query, and extra_snippets allow you to get up to 5 additional, alternative excerpts. Only available under Free AI, Base AI, Pro AI, Base Data, Pro Data and Custom plans.",
+          "type": "boolean"
+        },
+        "freshness": {
+          "anyOf": [
+            {
+              "const": "pd",
+              "type": "string"
+            },
+            {
+              "const": "pw",
+              "type": "string"
+            },
+            {
+              "const": "pm",
+              "type": "string"
+            },
+            {
+              "const": "py",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "pd",
+          "description": "Filters search results by when they were discovered. The following values are supported: 'pd' - Discovered within the last 24 hours. 'pw' - Discovered within the last 7 Days. 'pm' - Discovered within the last 31 Days. 'py' - Discovered within the last 365 Days. 'YYYY-MM-DDtoYYYY-MM-DD' - Timeframe is also supported by specifying the date range e.g. 2022-04-01to2022-07-30."
+        },
+        "goggles": {
+          "description": "Goggles act as a custom re-ranking on top of Brave's search index. The parameter supports both a url where the Goggle is hosted or the definition of the Goggle. For more details, refer to the Goggles repository (i.e., https://github.com/brave/goggles-quickstart).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "offset": {
+          "default": 0,
+          "description": "Pagination offset (max 9, default 0)",
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query (max 400 chars, 50 words)",
+          "maxLength": 400,
+          "type": "string"
+        },
+        "safesearch": {
+          "default": "moderate",
+          "description": "Filters search results for adult content. The following values are supported: 'off' - No filtering. 'moderate' - Filter out explicit content. 'strict' - Filter out explicit and suggestive content. The default value is 'moderate'.",
+          "enum": ["off", "moderate", "strict"],
+          "type": "string"
+        },
+        "search_lang": {
+          "default": "en",
+          "description": "Search language preference. The 2 or more character language code for which the search results are provided.",
+          "type": "string"
+        },
+        "spellcheck": {
+          "default": true,
+          "description": "Whether to spellcheck provided query.",
+          "type": "boolean"
+        },
+        "ui_lang": {
+          "default": "en-US",
+          "description": "User interface language preferred in response. Usually of the format <language_code>-<country_code>. For more, see RFC 9110.",
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "description": "\n    Retrieves AI-generated summaries of web search results using Brave's Summarizer API. This tool processes search results to create concise, coherent summaries of information gathered from multiple sources.\n\n    When to use:\n\n    - When you need a concise overview of complex topics from multiple sources\n    - For quick fact-checking or getting key points without reading full articles\n    - When providing users with summarized information that synthesizes various perspectives\n    - For research tasks requiring distilled information from web searches\n\n    Returns a text summary that consolidates information from the search results. Optional features include inline references to source URLs and additional entity information.\n\n    Requirements: Must first perform a web search using brave_web_search with summary=true parameter. Requires a Pro AI subscription to access the summarizer functionality.\n",
+    "name": "mcp__brave-search__brave_summarizer",
+    "parameters": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "entity_info": {
+          "default": false,
+          "description": "Returns extra entities info with the summary response.",
+          "type": "boolean"
+        },
+        "inline_references": {
+          "default": false,
+          "description": "Adds inline references to the summary response.",
+          "type": "boolean"
+        },
+        "key": {
+          "description": "The key is equal to value of field key as part of the Summarizer response model.",
+          "type": "string"
+        }
+      },
+      "required": ["key"],
+      "type": "object"
+    }
+  }
+]
