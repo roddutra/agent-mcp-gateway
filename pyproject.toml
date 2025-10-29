@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 requires-python = ">=3.12"
-dependencies = ["fastmcp>=2.13.0.1"]
+dependencies = ["fastmcp>=2.13.0.1", "watchdog>=6.0.0"]
 
 [dependency-groups]
 dev = ["pytest>=8.4.2", "pytest-asyncio>=1.2.0", "pytest-cov>=7.0.0"]

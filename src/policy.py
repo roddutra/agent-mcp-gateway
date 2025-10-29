@@ -13,7 +13,11 @@ Precedence Order (CRITICAL - DO NOT CHANGE):
 """
 
 import fnmatch
-from typing import Literal
+import logging
+from typing import Literal, Optional
+
+
+logger = logging.getLogger(__name__)
 
 
 class PolicyEngine:
@@ -353,3 +357,131 @@ class PolicyEngine:
             True if name matches pattern
         """
         return fnmatch.fnmatch(name, pattern)
+
+    def _compute_rule_diff(self, old_rules: dict, new_rules: dict) -> dict[str, list[str]]:
+        """Compute differences between old and new rules.
+
+        Args:
+            old_rules: Current rules dictionary
+            new_rules: New rules dictionary
+
+        Returns:
+            Dictionary with keys 'added', 'removed', 'modified' containing lists of agent IDs
+        """
+        old_agents = set(old_rules.get("agents", {}).keys())
+        new_agents = set(new_rules.get("agents", {}).keys())
+
+        added = sorted(new_agents - old_agents)
+        removed = sorted(old_agents - new_agents)
+
+        # Check for modified agents (agents present in both but with different configs)
+        modified = []
+        for agent_id in sorted(old_agents & new_agents):
+            old_config = old_rules.get("agents", {}).get(agent_id)
+            new_config = new_rules.get("agents", {}).get(agent_id)
+            if old_config != new_config:
+                modified.append(agent_id)
+
+        # Check if defaults changed
+        defaults_changed = old_rules.get("defaults") != new_rules.get("defaults")
+
+        return {
+            "added": added,
+            "removed": removed,
+            "modified": modified,
+            "defaults_changed": defaults_changed
+        }
+
+    def reload(self, new_rules: dict) -> tuple[bool, Optional[str]]:
+        """Reload policy rules with validation and atomic swap.
+
+        This method validates new rules before applying them. If validation fails,
+        the current rules remain unchanged. If validation succeeds, rules are
+        atomically swapped to the new configuration.
+
+        Thread-safety: This method is NOT thread-safe by itself. If PolicyEngine
+        is accessed from multiple threads, external synchronization (e.g., lock)
+        should be used by the caller.
+
+        Args:
+            new_rules: New gateway rules configuration with structure:
+                {
+                    "agents": {
+                        "agent_id": {
+                            "allow": {"servers": [...], "tools": {...}},
+                            "deny": {"servers": [...], "tools": {...}}
+                        }
+                    },
+                    "defaults": {"deny_on_missing_agent": bool}
+                }
+
+        Returns:
+            Tuple of (success, error_message):
+            - (True, None) if reload successful
+            - (False, error_message) if validation failed
+
+        Example:
+            >>> engine = PolicyEngine(old_rules)
+            >>> success, error = engine.reload(new_rules)
+            >>> if success:
+            ...     print("Rules reloaded successfully")
+            ... else:
+            ...     print(f"Reload failed: {error}")
+        """
+        logger.info("PolicyEngine reload initiated")
+
+        # Import validation function to avoid circular dependency at module level
+        from src.config import validate_gateway_rules
+
+        # Validate new rules structure
+        valid, error_msg = validate_gateway_rules(new_rules)
+        if not valid:
+            logger.error(f"PolicyEngine reload failed: Validation error: {error_msg}")
+            return False, f"Validation error: {error_msg}"
+
+        logger.info("PolicyEngine reload: Validation passed")
+
+        # Store old rules for potential rollback
+        old_rules = self.rules
+
+        try:
+            # Compute diff for logging
+            diff = self._compute_rule_diff(old_rules, new_rules)
+
+            # Log changes
+            if diff["added"]:
+                logger.info(f"PolicyEngine reload: Added agents: {', '.join(diff['added'])}")
+            if diff["removed"]:
+                logger.info(f"PolicyEngine reload: Removed agents: {', '.join(diff['removed'])}")
+            if diff["modified"]:
+                logger.info(f"PolicyEngine reload: Modified agents: {', '.join(diff['modified'])}")
+            if diff["defaults_changed"]:
+                logger.info("PolicyEngine reload: Default policy changed")
+
+            # Summarize changes
+            total_changes = len(diff["added"]) + len(diff["removed"]) + len(diff["modified"])
+            if total_changes == 0 and not diff["defaults_changed"]:
+                logger.info("PolicyEngine reload: No changes detected in rules")
+            else:
+                logger.info(
+                    f"PolicyEngine reload: Rules updated - "
+                    f"{len(diff['added'])} agents added, "
+                    f"{len(diff['removed'])} removed, "
+                    f"{len(diff['modified'])} modified"
+                )
+
+            # Atomic swap: Update internal state
+            self.rules = new_rules
+            self.agents = new_rules.get("agents", {})
+            self.defaults = new_rules.get("defaults", {})
+
+            logger.info("PolicyEngine reload complete")
+            return True, None
+
+        except Exception as e:
+            # Rollback on any error during swap
+            logger.error(f"PolicyEngine reload failed: Unexpected error during swap: {e}")
+            self.rules = old_rules
+            self.agents = old_rules.get("agents", {})
+            self.defaults = old_rules.get("defaults", {})
+            return False, f"Unexpected error during reload: {str(e)}"

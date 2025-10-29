@@ -24,6 +24,7 @@ class ProxyManager:
         self._clients: dict[str, Client] = {}
         self._connection_status: dict[str, bool] = {}
         self._connection_errors: dict[str, str] = {}
+        self._current_config: dict = {}  # Store current config for reload comparison
 
     def initialize_connections(self, mcp_config: dict) -> dict[str, Client]:
         """Initialize Client instances from MCP configuration.
@@ -77,6 +78,9 @@ class ProxyManager:
             except Exception as e:
                 logger.error(f"Failed to initialize client for {server_name}: {e}")
                 self._connection_errors[server_name] = str(e)
+
+        # Store current config for reload comparison
+        self._current_config = mcp_config
 
         return self._clients
 
@@ -374,6 +378,244 @@ class ProxyManager:
             List of server names
         """
         return list(self._clients.keys())
+
+    def _config_changed(self, server_name: str, new_mcp_config: dict) -> bool:
+        """Check if a server's configuration has changed.
+
+        Compares the server configuration in the current config with the new config
+        to determine if the server needs to be reloaded.
+
+        Args:
+            server_name: Name of the server to check
+            new_mcp_config: New MCP configuration to compare against
+
+        Returns:
+            True if configuration changed, False otherwise
+        """
+        old_servers = self._current_config.get("mcpServers", {})
+        new_servers = new_mcp_config.get("mcpServers", {})
+
+        old_config = old_servers.get(server_name, {})
+        new_config = new_servers.get(server_name, {})
+
+        # Compare the configurations (deep comparison)
+        return old_config != new_config
+
+    async def reload(self, new_mcp_config: dict) -> tuple[bool, str | None]:
+        """Reload proxy client connections with new MCP server configuration.
+
+        This method performs an atomic configuration update by:
+        1. Validating the new configuration
+        2. Determining which servers need to be added, removed, or updated
+        3. Closing connections for removed/updated servers
+        4. Creating new clients for added/updated servers
+        5. Preserving unchanged servers (no disruption)
+
+        The reload follows the lazy connection strategy - new clients are created
+        in disconnected state and will connect on first use.
+
+        Args:
+            new_mcp_config: New MCP server configuration dictionary with structure:
+                {
+                    "mcpServers": {
+                        "server-name": {
+                            "command": "npx",
+                            "args": [...],
+                            "env": {...}
+                        }
+                    }
+                }
+
+        Returns:
+            Tuple of (success: bool, error_message: str | None)
+            - (True, None) if reload successful
+            - (False, error_message) if validation failed or reload encountered errors
+
+        Thread Safety:
+            This method is NOT thread-safe. The caller must ensure that reload
+            operations are serialized and that no concurrent operations are
+            accessing the ProxyManager during reload.
+
+        Examples:
+            >>> manager = ProxyManager()
+            >>> manager.initialize_connections(initial_config)
+            >>> success, error = await manager.reload(new_config)
+            >>> if success:
+            ...     logger.info("Reload successful")
+            >>> else:
+            ...     logger.error(f"Reload failed: {error}")
+        """
+        logger.info("ProxyManager reload initiated")
+
+        # Validate new configuration structure
+        try:
+            if not isinstance(new_mcp_config, dict):
+                error_msg = f"MCP configuration must be a dict, got {type(new_mcp_config).__name__}"
+                logger.error(f"Reload validation failed: {error_msg}")
+                return False, error_msg
+
+            new_mcp_servers = new_mcp_config.get("mcpServers", {})
+            if not isinstance(new_mcp_servers, dict):
+                error_msg = f'"mcpServers" must be a dict, got {type(new_mcp_servers).__name__}'
+                logger.error(f"Reload validation failed: {error_msg}")
+                return False, error_msg
+
+            # Validate each server config before proceeding
+            for server_name, server_config in new_mcp_servers.items():
+                try:
+                    # Validate by attempting to parse the config (without creating client)
+                    has_command = "command" in server_config
+                    has_url = "url" in server_config
+
+                    if not has_command and not has_url:
+                        raise ValueError(
+                            f'Server "{server_name}" must specify either "command" (stdio) '
+                            f'or "url" (HTTP) transport'
+                        )
+
+                    if has_command and has_url:
+                        raise ValueError(
+                            f'Server "{server_name}" cannot have both "command" and "url"'
+                        )
+
+                    # Validate stdio config
+                    if has_command:
+                        command = server_config["command"]
+                        args = server_config.get("args", [])
+                        env = server_config.get("env", {})
+
+                        if not isinstance(command, str):
+                            raise ValueError(f'Server "{server_name}": "command" must be a string')
+                        if not isinstance(args, list):
+                            raise ValueError(f'Server "{server_name}": "args" must be a list')
+                        if not isinstance(env, dict):
+                            raise ValueError(f'Server "{server_name}": "env" must be a dict')
+
+                    # Validate HTTP config
+                    if has_url:
+                        url = server_config["url"]
+                        headers = server_config.get("headers", {})
+
+                        if not isinstance(url, str):
+                            raise ValueError(f'Server "{server_name}": "url" must be a string')
+                        if not isinstance(headers, dict):
+                            raise ValueError(f'Server "{server_name}": "headers" must be a dict')
+
+                except Exception as e:
+                    error_msg = f"Invalid configuration for server '{server_name}': {e}"
+                    logger.error(f"Reload validation failed: {error_msg}")
+                    return False, error_msg
+
+        except Exception as e:
+            error_msg = f"Configuration validation error: {e}"
+            logger.error(f"Reload validation failed: {error_msg}")
+            return False, error_msg
+
+        logger.info("Configuration validation passed")
+
+        # Determine server changes
+        old_servers = set(self._clients.keys())
+        new_servers = set(new_mcp_config.get("mcpServers", {}).keys())
+
+        servers_to_add = new_servers - old_servers
+        servers_to_remove = old_servers - new_servers
+        servers_to_check = old_servers & new_servers
+
+        servers_to_update = [
+            s for s in servers_to_check
+            if self._config_changed(s, new_mcp_config)
+        ]
+        servers_unchanged = [
+            s for s in servers_to_check
+            if not self._config_changed(s, new_mcp_config)
+        ]
+
+        logger.info(
+            f"Server changes: "
+            f"+{len(servers_to_add)} (add), "
+            f"-{len(servers_to_remove)} (remove), "
+            f"~{len(servers_to_update)} (update), "
+            f"={len(servers_unchanged)} (unchanged)"
+        )
+
+        if servers_to_add:
+            logger.info(f"Servers to add: {sorted(servers_to_add)}")
+        if servers_to_remove:
+            logger.info(f"Servers to remove: {sorted(servers_to_remove)}")
+        if servers_to_update:
+            logger.info(f"Servers to update: {sorted(servers_to_update)}")
+        if servers_unchanged:
+            logger.debug(f"Servers unchanged: {sorted(servers_unchanged)}")
+
+        # Close connections for removed and updated servers
+        servers_to_close = list(servers_to_remove) + servers_to_update
+
+        if servers_to_close:
+            logger.info(f"Closing connections for {len(servers_to_close)} servers")
+
+            for server_name in servers_to_close:
+                try:
+                    client = self._clients.get(server_name)
+                    if client is not None:
+                        # Since we use lazy connection strategy with context managers,
+                        # clients don't maintain persistent connections. However, we
+                        # should still clean up any resources.
+                        logger.debug(f"Cleaning up client for server: {server_name}")
+                        # Note: Client instances don't have an explicit close() method
+                        # as they use async context managers. Resources are released
+                        # when we remove the reference.
+
+                    # Remove from all tracking dictionaries
+                    self._clients.pop(server_name, None)
+                    self._connection_status.pop(server_name, None)
+                    self._connection_errors.pop(server_name, None)
+
+                    logger.debug(f"Removed client for server: {server_name}")
+
+                except Exception as e:
+                    logger.warning(
+                        f"Error during cleanup for server '{server_name}': {e}",
+                        exc_info=True
+                    )
+                    # Continue with reload despite cleanup errors
+
+        # Create clients for new and updated servers
+        servers_to_create = list(servers_to_add) + servers_to_update
+        new_mcp_servers = new_mcp_config.get("mcpServers", {})
+
+        if servers_to_create:
+            logger.info(f"Creating clients for {len(servers_to_create)} servers")
+
+            for server_name in servers_to_create:
+                try:
+                    server_config = new_mcp_servers[server_name]
+                    client = self._create_client(server_name, server_config)
+
+                    self._clients[server_name] = client
+                    self._connection_status[server_name] = False  # Not yet connected
+                    self._connection_errors[server_name] = ""
+
+                    logger.info(f"Created client for server: {server_name}")
+
+                except Exception as e:
+                    # Log error but don't fail the entire reload
+                    # This follows the lazy connection strategy - servers with
+                    # initialization errors are recorded and will error on use
+                    logger.error(
+                        f"Failed to create client for server '{server_name}': {e}",
+                        exc_info=True
+                    )
+                    self._connection_errors[server_name] = str(e)
+
+        # Update stored config
+        self._current_config = new_mcp_config
+
+        logger.info(
+            f"ProxyManager reload completed successfully. "
+            f"Active servers: {len(self._clients)}"
+        )
+
+        return True, None
 
     async def close_all_connections(self):
         """Close all Client connections.

@@ -782,6 +782,316 @@ class TestHelperMethods:
         assert "write" in reason
 
 
+class TestPolicyReload:
+    """Test cases for policy reload functionality."""
+
+    def test_reload_valid_rules(self):
+        """Test successful reload with valid rules."""
+        initial_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {"servers": ["api"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        # Verify initial state
+        assert engine.can_access_server("agent1", "api") is True
+        assert engine.can_access_server("agent2", "db") is False
+
+        # Reload with new rules
+        new_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {"servers": ["api", "db"]}
+                },
+                "agent2": {
+                    "allow": {"servers": ["db"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        success, error = engine.reload(new_rules)
+
+        # Verify reload succeeded
+        assert success is True
+        assert error is None
+
+        # Verify new rules are active
+        assert engine.can_access_server("agent1", "db") is True
+        assert engine.can_access_server("agent2", "db") is True
+
+    def test_reload_invalid_rules_no_change(self):
+        """Test that invalid rules don't modify engine state."""
+        initial_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {"servers": ["api"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        # Attempt to reload with invalid rules (malformed structure)
+        invalid_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {"servers": "not_a_list"}  # Should be list
+                }
+            }
+        }
+
+        success, error = engine.reload(invalid_rules)
+
+        # Verify reload failed
+        assert success is False
+        assert error is not None
+        assert "Validation error" in error
+
+        # Verify original rules still active
+        assert engine.can_access_server("agent1", "api") is True
+
+    def test_reload_with_agent_additions(self):
+        """Test reload that adds new agents."""
+        initial_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {"servers": ["api"]}
+                }
+            }
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        new_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {"servers": ["api"]}
+                },
+                "agent2": {
+                    "allow": {"servers": ["db"]}
+                },
+                "agent3": {
+                    "allow": {"servers": ["cache"]}
+                }
+            }
+        }
+
+        success, error = engine.reload(new_rules)
+
+        assert success is True
+        assert engine.can_access_server("agent2", "db") is True
+        assert engine.can_access_server("agent3", "cache") is True
+
+    def test_reload_with_agent_removals(self):
+        """Test reload that removes agents."""
+        initial_rules = {
+            "agents": {
+                "agent1": {"allow": {"servers": ["api"]}},
+                "agent2": {"allow": {"servers": ["db"]}},
+                "agent3": {"allow": {"servers": ["cache"]}}
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        new_rules = {
+            "agents": {
+                "agent1": {"allow": {"servers": ["api"]}}
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        success, error = engine.reload(new_rules)
+
+        assert success is True
+        # Removed agents should be denied (if default is deny)
+        assert engine.can_access_server("agent2", "db") is False
+        assert engine.can_access_server("agent3", "cache") is False
+
+    def test_reload_with_agent_modifications(self):
+        """Test reload that modifies existing agent permissions."""
+        initial_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {
+                        "servers": ["api"],
+                        "tools": {"api": ["get_*"]}
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        # Verify initial permissions
+        assert engine.can_access_tool("agent1", "api", "get_user") is True
+        assert engine.can_access_tool("agent1", "api", "set_user") is False
+
+        # Reload with modified permissions
+        new_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {
+                        "servers": ["api"],
+                        "tools": {"api": ["*"]}  # Now allow all tools
+                    }
+                }
+            }
+        }
+
+        success, error = engine.reload(new_rules)
+
+        assert success is True
+        # Verify new permissions
+        assert engine.can_access_tool("agent1", "api", "get_user") is True
+        assert engine.can_access_tool("agent1", "api", "set_user") is True
+
+    def test_reload_with_defaults_change(self):
+        """Test reload that changes default policy."""
+        initial_rules = {
+            "agents": {
+                "agent1": {"allow": {"servers": ["api"]}}
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        # Unknown agent should be denied
+        assert engine.can_access_server("unknown", "api") is False
+
+        # Reload with permissive default
+        new_rules = {
+            "agents": {
+                "agent1": {"allow": {"servers": ["api"]}}
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        success, error = engine.reload(new_rules)
+
+        assert success is True
+        # Unknown agent should now be allowed
+        assert engine.can_access_server("unknown", "api") is True
+
+    def test_reload_empty_rules(self):
+        """Test reload with empty agents section."""
+        initial_rules = {
+            "agents": {
+                "agent1": {"allow": {"servers": ["api"]}}
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        # Reload with empty agents
+        new_rules = {
+            "agents": {},
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        success, error = engine.reload(new_rules)
+
+        assert success is True
+        # All agents should now be denied
+        assert engine.can_access_server("agent1", "api") is False
+
+    def test_reload_no_changes(self):
+        """Test reload with identical rules."""
+        rules = {
+            "agents": {
+                "agent1": {"allow": {"servers": ["api"]}}
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        engine = PolicyEngine(rules)
+
+        # Reload with same rules
+        success, error = engine.reload(rules)
+
+        assert success is True
+        assert error is None
+        # Should still work the same
+        assert engine.can_access_server("agent1", "api") is True
+
+    def test_reload_invalid_wildcard_pattern(self):
+        """Test reload with invalid wildcard patterns."""
+        initial_rules = {
+            "agents": {
+                "agent1": {"allow": {"servers": ["api"]}}
+            }
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        # Attempt reload with invalid pattern (multiple wildcards)
+        invalid_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {
+                        "servers": ["api"],
+                        "tools": {"api": ["get_*_data"]}  # Multiple wildcards not allowed
+                    }
+                }
+            }
+        }
+
+        success, error = engine.reload(invalid_rules)
+
+        # Should fail validation
+        assert success is False
+        assert error is not None
+        # Original rules should remain
+        assert engine.can_access_server("agent1", "api") is True
+
+    def test_reload_preserves_deny_before_allow(self):
+        """Test that reload maintains deny-before-allow precedence."""
+        initial_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {
+                        "servers": ["db"],
+                        "tools": {"db": ["*"]}
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        # Reload with deny rules added
+        new_rules = {
+            "agents": {
+                "agent1": {
+                    "allow": {
+                        "servers": ["db"],
+                        "tools": {"db": ["*"]}
+                    },
+                    "deny": {
+                        "tools": {"db": ["drop_*"]}
+                    }
+                }
+            }
+        }
+
+        success, error = engine.reload(new_rules)
+
+        assert success is True
+        # Verify deny-before-allow is respected
+        assert engine.can_access_tool("agent1", "db", "query") is True
+        assert engine.can_access_tool("agent1", "db", "drop_table") is False
+
+
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 

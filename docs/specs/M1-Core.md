@@ -588,6 +588,64 @@ class MetricsCollector:
         return summary
 ```
 
+### Hot Configuration Reload
+
+- [ ] Add watchdog dependency
+  - [ ] Update pyproject.toml with watchdog package
+  - [ ] Run `uv sync` to install
+
+- [ ] Create ConfigWatcher class (src/config_watcher.py)
+  - [ ] Implement file system monitoring for both config files
+  - [ ] Add debouncing logic (300ms default) for rapid saves
+  - [ ] Create callback system for reload notifications
+  - [ ] Handle file events (modified, created, moved)
+  - [ ] Add logging for config change detection
+
+- [ ] Add validation framework (src/config.py)
+  - [ ] Implement `validate_mcp_config(config: dict) -> bool`
+  - [ ] Implement `validate_gateway_rules(rules: dict) -> bool`
+  - [ ] Add `reload_configs()` function with validation
+  - [ ] Store config file paths for reloading
+  - [ ] Return validation errors with helpful messages
+
+- [ ] Implement PolicyEngine reload (src/policy.py)
+  - [ ] Add `reload(new_rules: dict) -> bool` method
+  - [ ] Validate rules before applying
+  - [ ] Atomic swap of internal rules dictionary
+  - [ ] Add logging for rule changes (added/removed/modified)
+  - [ ] Handle validation failures gracefully
+
+- [ ] Implement ProxyManager reload (src/proxy.py)
+  - [ ] Add `reload(new_config: dict) -> bool` method
+  - [ ] Compare old vs new server configurations
+  - [ ] Add new servers dynamically
+  - [ ] Remove deleted servers and clean up connections
+  - [ ] Update changed server configurations
+  - [ ] Validate server configs before applying
+  - [ ] Handle connection failures for new servers
+
+- [ ] Integrate ConfigWatcher in main (main.py)
+  - [ ] Initialize ConfigWatcher with config file paths
+  - [ ] Register reload callback for PolicyEngine
+  - [ ] Register reload callback for ProxyManager
+  - [ ] Add error handling for reload failures
+  - [ ] Log reload success/failure events
+  - [ ] Ensure graceful degradation on reload errors
+
+- [ ] Create unit tests
+  - [ ] tests/test_config_watcher.py (file watching, debouncing, callbacks)
+  - [ ] tests/test_config_reload.py (validation, rollback scenarios)
+  - [ ] Add reload tests to test_policy.py
+  - [ ] Add reload tests to test_proxy.py
+
+- [ ] Create integration tests
+  - [ ] tests/test_integration_reload.py (end-to-end reload)
+  - [ ] Test file modification triggers reload
+  - [ ] Test validation failures preserve old config
+  - [ ] Test in-flight operations unaffected by reload
+  - [ ] Test new operations use new config
+  - [ ] Test concurrent reloads handled safely
+
 ### Integration & Testing
 
 - [x] Update main.py with all new components
@@ -656,6 +714,11 @@ async def test_full_workflow():
 - [x] Session isolation prevents context mixing
 - [x] Middleware enforces access control
 - [x] Metrics are collected for all operations
+- [ ] Hot configuration reload works automatically
+  - [ ] File changes detected within 500ms
+  - [ ] Invalid configs rejected with old config preserved
+  - [ ] In-flight operations complete with old config
+  - [ ] New operations use new config immediately
 
 ### Performance Requirements
 - [x] execute_tool overhead: <30ms (P95) - **Actual: ~5ms (83% better)**

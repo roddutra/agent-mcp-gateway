@@ -784,3 +784,395 @@ class TestLazyConnectionStrategy:
         # Each call should enter and exit context (fresh session)
         assert enter_call_count == 3
         assert exit_call_count == 3
+
+
+class TestReload:
+    """Test cases for configuration reload functionality."""
+
+    @pytest.mark.asyncio
+    async def test_reload_add_servers(self):
+        """Test reloading with new servers added."""
+        manager = ProxyManager()
+
+        # Initial config with one server
+        initial_config = {
+            "mcpServers": {
+                "server1": {
+                    "command": "npx",
+                    "args": ["test1"]
+                }
+            }
+        }
+        manager.initialize_connections(initial_config)
+        assert len(manager._clients) == 1
+
+        # New config with additional server
+        new_config = {
+            "mcpServers": {
+                "server1": {
+                    "command": "npx",
+                    "args": ["test1"]
+                },
+                "server2": {
+                    "command": "uvx",
+                    "args": ["test2"]
+                }
+            }
+        }
+
+        success, error = await manager.reload(new_config)
+
+        assert success is True
+        assert error is None
+        assert len(manager._clients) == 2
+        assert "server1" in manager._clients
+        assert "server2" in manager._clients
+
+    @pytest.mark.asyncio
+    async def test_reload_remove_servers(self):
+        """Test reloading with servers removed."""
+        manager = ProxyManager()
+
+        # Initial config with two servers
+        initial_config = {
+            "mcpServers": {
+                "server1": {
+                    "command": "npx",
+                    "args": ["test1"]
+                },
+                "server2": {
+                    "url": "https://example.com"
+                }
+            }
+        }
+        manager.initialize_connections(initial_config)
+        assert len(manager._clients) == 2
+
+        # New config with one server removed
+        new_config = {
+            "mcpServers": {
+                "server1": {
+                    "command": "npx",
+                    "args": ["test1"]
+                }
+            }
+        }
+
+        success, error = await manager.reload(new_config)
+
+        assert success is True
+        assert error is None
+        assert len(manager._clients) == 1
+        assert "server1" in manager._clients
+        assert "server2" not in manager._clients
+        assert "server2" not in manager._connection_status
+        assert "server2" not in manager._connection_errors
+
+    @pytest.mark.asyncio
+    async def test_reload_update_servers(self):
+        """Test reloading with server config changed."""
+        manager = ProxyManager()
+
+        # Initial config
+        initial_config = {
+            "mcpServers": {
+                "server1": {
+                    "command": "npx",
+                    "args": ["test1"],
+                    "env": {"KEY": "old"}
+                }
+            }
+        }
+        manager.initialize_connections(initial_config)
+        old_client = manager._clients["server1"]
+
+        # New config with updated server
+        new_config = {
+            "mcpServers": {
+                "server1": {
+                    "command": "npx",
+                    "args": ["test1"],
+                    "env": {"KEY": "new"}
+                }
+            }
+        }
+
+        success, error = await manager.reload(new_config)
+
+        assert success is True
+        assert error is None
+        assert len(manager._clients) == 1
+        assert "server1" in manager._clients
+        # New client should be created
+        assert manager._clients["server1"] is not old_client
+
+    @pytest.mark.asyncio
+    async def test_reload_unchanged_servers(self):
+        """Test reloading preserves unchanged servers."""
+        manager = ProxyManager()
+
+        # Initial config
+        initial_config = {
+            "mcpServers": {
+                "server1": {
+                    "command": "npx",
+                    "args": ["test1"]
+                },
+                "server2": {
+                    "url": "https://example.com"
+                }
+            }
+        }
+        manager.initialize_connections(initial_config)
+        server1_client = manager._clients["server1"]
+        server2_client = manager._clients["server2"]
+
+        # Reload with same config
+        success, error = await manager.reload(initial_config)
+
+        assert success is True
+        assert error is None
+        assert len(manager._clients) == 2
+        # Same client instances should be preserved
+        assert manager._clients["server1"] is server1_client
+        assert manager._clients["server2"] is server2_client
+
+    @pytest.mark.asyncio
+    async def test_reload_mixed_changes(self):
+        """Test reloading with add, remove, update, and unchanged servers."""
+        manager = ProxyManager()
+
+        # Initial config
+        initial_config = {
+            "mcpServers": {
+                "keep-same": {
+                    "command": "npx",
+                    "args": ["keep"]
+                },
+                "update-me": {
+                    "command": "npx",
+                    "args": ["old"]
+                },
+                "remove-me": {
+                    "url": "https://remove.com"
+                }
+            }
+        }
+        manager.initialize_connections(initial_config)
+        keep_same_client = manager._clients["keep-same"]
+        assert len(manager._clients) == 3
+
+        # New config with mixed changes
+        new_config = {
+            "mcpServers": {
+                "keep-same": {
+                    "command": "npx",
+                    "args": ["keep"]
+                },
+                "update-me": {
+                    "command": "uvx",  # Changed command
+                    "args": ["new"]
+                },
+                "add-me": {
+                    "url": "https://add.com"
+                }
+            }
+        }
+
+        success, error = await manager.reload(new_config)
+
+        assert success is True
+        assert error is None
+        assert len(manager._clients) == 3
+        assert "keep-same" in manager._clients
+        assert "update-me" in manager._clients
+        assert "add-me" in manager._clients
+        assert "remove-me" not in manager._clients
+        # Unchanged server should have same client
+        assert manager._clients["keep-same"] is keep_same_client
+
+    @pytest.mark.asyncio
+    async def test_reload_invalid_config_type(self):
+        """Test reload fails with invalid config type."""
+        manager = ProxyManager()
+        initial_config = {"mcpServers": {}}
+        manager.initialize_connections(initial_config)
+
+        success, error = await manager.reload("not-a-dict")
+
+        assert success is False
+        assert error is not None
+        assert "must be a dict" in error
+
+    @pytest.mark.asyncio
+    async def test_reload_invalid_mcpservers_type(self):
+        """Test reload fails with invalid mcpServers type."""
+        manager = ProxyManager()
+        initial_config = {"mcpServers": {}}
+        manager.initialize_connections(initial_config)
+
+        success, error = await manager.reload({"mcpServers": "not-a-dict"})
+
+        assert success is False
+        assert error is not None
+        assert "mcpServers" in error
+        assert "must be a dict" in error
+
+    @pytest.mark.asyncio
+    async def test_reload_invalid_server_config(self):
+        """Test reload fails with invalid server configuration."""
+        manager = ProxyManager()
+        initial_config = {"mcpServers": {}}
+        manager.initialize_connections(initial_config)
+
+        # Server with both command and url (invalid)
+        new_config = {
+            "mcpServers": {
+                "invalid": {
+                    "command": "npx",
+                    "url": "https://example.com"
+                }
+            }
+        }
+
+        success, error = await manager.reload(new_config)
+
+        assert success is False
+        assert error is not None
+        assert "invalid" in error
+        assert "cannot have both" in error
+
+    @pytest.mark.asyncio
+    async def test_reload_invalid_server_missing_transport(self):
+        """Test reload fails when server missing transport."""
+        manager = ProxyManager()
+        initial_config = {"mcpServers": {}}
+        manager.initialize_connections(initial_config)
+
+        new_config = {
+            "mcpServers": {
+                "invalid": {
+                    "args": ["test"]
+                }
+            }
+        }
+
+        success, error = await manager.reload(new_config)
+
+        assert success is False
+        assert error is not None
+        assert "must specify either" in error
+
+    @pytest.mark.asyncio
+    async def test_reload_empty_config(self):
+        """Test reloading with empty server list."""
+        manager = ProxyManager()
+
+        # Initial config with servers
+        initial_config = {
+            "mcpServers": {
+                "server1": {"command": "npx", "args": ["test1"]},
+                "server2": {"url": "https://example.com"}
+            }
+        }
+        manager.initialize_connections(initial_config)
+        assert len(manager._clients) == 2
+
+        # Reload with empty config
+        empty_config = {"mcpServers": {}}
+        success, error = await manager.reload(empty_config)
+
+        assert success is True
+        assert error is None
+        assert len(manager._clients) == 0
+
+    @pytest.mark.asyncio
+    async def test_reload_updates_current_config(self):
+        """Test that reload updates the stored current config."""
+        manager = ProxyManager()
+
+        initial_config = {
+            "mcpServers": {
+                "server1": {"command": "npx", "args": ["test1"]}
+            }
+        }
+        manager.initialize_connections(initial_config)
+        assert manager._current_config == initial_config
+
+        new_config = {
+            "mcpServers": {
+                "server2": {"url": "https://example.com"}
+            }
+        }
+        success, error = await manager.reload(new_config)
+
+        assert success is True
+        assert manager._current_config == new_config
+
+    @pytest.mark.asyncio
+    async def test_reload_partial_failure_continues(self):
+        """Test that reload continues even if some servers fail to create."""
+        manager = ProxyManager()
+
+        initial_config = {"mcpServers": {}}
+        manager.initialize_connections(initial_config)
+
+        # Config with one valid and one server that will fail creation
+        new_config = {
+            "mcpServers": {
+                "valid-server": {
+                    "command": "npx",
+                    "args": ["test"]
+                },
+                "another-valid": {
+                    "url": "https://example.com"
+                }
+            }
+        }
+
+        # Mock _create_client to fail for one server
+        original_create = manager._create_client
+
+        def mock_create(name, config):
+            if name == "valid-server":
+                raise Exception("Simulated failure")
+            return original_create(name, config)
+
+        with patch.object(manager, '_create_client', side_effect=mock_create):
+            success, error = await manager.reload(new_config)
+
+        # Reload should succeed overall despite partial failure
+        assert success is True
+        assert error is None
+        # The server that succeeded should be present
+        assert "another-valid" in manager._clients
+        # The failed server should have an error recorded
+        assert "valid-server" in manager._connection_errors
+        assert manager._connection_errors["valid-server"] != ""
+
+    @pytest.mark.asyncio
+    async def test_config_changed_helper(self):
+        """Test the _config_changed helper method."""
+        manager = ProxyManager()
+
+        config1 = {
+            "mcpServers": {
+                "server1": {"command": "npx", "args": ["test1"]},
+                "server2": {"url": "https://example.com"}
+            }
+        }
+        manager.initialize_connections(config1)
+
+        # Same config should not be changed
+        assert manager._config_changed("server1", config1) is False
+        assert manager._config_changed("server2", config1) is False
+
+        # Different config should be changed
+        config2 = {
+            "mcpServers": {
+                "server1": {"command": "uvx", "args": ["test1"]},  # Changed
+                "server2": {"url": "https://example.com"}  # Same
+            }
+        }
+        assert manager._config_changed("server1", config2) is True
+        assert manager._config_changed("server2", config2) is False
