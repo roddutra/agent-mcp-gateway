@@ -117,12 +117,12 @@ GATEWAY_DEFAULT_AGENT=developer
   - [ ] Provide helpful error messages
 
 - [ ] Implement validation checks
-  - [ ] Verify all servers in rules exist in mcp-config
-  - [ ] Validate JSON syntax
-  - [ ] Check for required fields
-  - [ ] Validate environment variable references
-  - [ ] Check for conflicting rules
-  - [ ] Warn about unreachable servers
+  - [ ] Validate JSON syntax (error)
+  - [ ] Check for required fields (error)
+  - [ ] Warn about servers in rules not in mcp-config (warning only - runtime allows this)
+  - [ ] Validate environment variable references (warning)
+  - [ ] Check for conflicting rules (info)
+  - [ ] Test connectivity to configured servers (warning)
 
 - [ ] Add config generation commands
   - [ ] `generate-config --single-agent` for simple setup
@@ -268,7 +268,9 @@ def validate_rules_config(rules_path: str, mcp_path: str) -> Tuple[List[str], Li
             if "servers" in allow:
                 for server in allow["servers"]:
                     if server != "*" and server not in available_servers:
-                        errors.append(f"Agent '{agent_name}' references unknown server: {server}")
+                        # Note: Runtime treats this as a warning, not an error
+                        # CLI can be stricter to help catch configuration issues early
+                        warnings.append(f"Agent '{agent_name}' references unknown server: {server}")
 
         # Check deny rules
         if "deny" in agent_rules:
@@ -276,7 +278,8 @@ def validate_rules_config(rules_path: str, mcp_path: str) -> Tuple[List[str], Li
             if "servers" in deny:
                 for server in deny["servers"]:
                     if server != "*" and server not in available_servers:
-                        errors.append(f"Agent '{agent_name}' denies unknown server: {server}")
+                        # Note: Runtime treats this as a warning, not an error
+                        warnings.append(f"Agent '{agent_name}' denies unknown server: {server}")
 
     return errors, warnings
 

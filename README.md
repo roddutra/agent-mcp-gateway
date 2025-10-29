@@ -5,11 +5,11 @@ An MCP gateway that aggregates multiple MCP servers and provides policy-based ac
 ## Status
 
 - ✅ **M0: Foundation** - Configuration, policy engine, audit logging, `list_servers` tool
-- ✅ **M1: Core** - Proxy infrastructure, `get_server_tools`, `execute_tool`, middleware, metrics
+- ✅ **M1: Core** - Proxy infrastructure, `get_server_tools`, `execute_tool`, middleware, metrics, hot reload
 - 🚧 **M2: Production** - HTTP transport, health checks (planned)
 - 🚧 **M3: DX** - Single-agent mode, config validation CLI, Docker (planned)
 
-**Current Version:** M1-Core Complete (276 tests, 92% coverage)
+**Current Version:** M1-Core Complete (420 tests, 92% coverage)
 
 ---
 
@@ -56,6 +56,9 @@ The Agent MCP Gateway acts as a single MCP server that proxies to multiple downs
 ✅ **Transparent Proxying** - Downstream servers unaware of gateway
 ✅ **Audit Logging** - All operations logged for monitoring
 ✅ **Performance Metrics** - Track latency and error rates per agent/operation
+✅ **Hot Configuration Reload** - Update rules/servers without restart
+✅ **Thread-Safe Operations** - Safe concurrent access during reloads
+✅ **Diagnostic Tools** - Health monitoring via `get_gateway_status`
 
 ---
 
@@ -202,6 +205,12 @@ Defines per-agent access policies using deny-before-allow precedence:
 4. Wildcard allow rules
 5. Default policy (lowest priority)
 
+**Configuration Flexibility:**
+- Rules can reference servers not currently in `mcp-servers.json`
+- Undefined server references treated as warnings (not errors)
+- Allows keeping rules for temporarily removed servers
+- Hot reload applies changes immediately without restart
+
 **Wildcard Patterns:**
 - `*` - Matches everything
 - `get_*` - Matches tools starting with "get_"
@@ -213,13 +222,19 @@ Defines per-agent access policies using deny-before-allow precedence:
 
 ### Configuration Validation
 
-The gateway validates configurations at startup and provides clear error messages:
+The gateway validates configurations at startup and during hot reload:
 
 ```bash
 uv run python main.py
 # ✓ Configuration loaded
 # ⚠ Warning: Agent 'researcher' references undefined server 'unknown-server'
+# ℹ These rules will be ignored until the server is added
 ```
+
+**Validation Behavior:**
+- Structural errors (invalid JSON, missing required fields) → Fail startup/reload
+- Undefined server references → Log warnings, continue with valid rules
+- Policy conflicts → Deny-before-allow precedence resolves automatically
 
 ---
 
@@ -369,6 +384,10 @@ tools = await client.call_tool("get_server_tools", {
 
 Executes a tool on a downstream MCP server with transparent result forwarding.
 
+### 4. `get_gateway_status`
+
+Returns comprehensive gateway health and diagnostics information.
+
 **Parameters:**
 - `agent_id` (string, required) - Identifier of the agent
 - `server` (string, required) - Name of the downstream MCP server
@@ -413,6 +432,55 @@ result = await client.call_tool("execute_tool", {
 })
 ```
 
+**Parameters:**
+- `agent_id` (string, required) - Identifier of the agent
+
+**Returns:**
+```json
+{
+  "reload_status": {
+    "mcp_config": {
+      "last_attempt": "2025-10-30T10:30:00Z",
+      "last_success": "2025-10-30T10:30:00Z",
+      "last_error": null,
+      "attempt_count": 1,
+      "success_count": 1
+    },
+    "gateway_rules": {
+      "last_attempt": "2025-10-30T10:35:00Z",
+      "last_success": "2025-10-30T10:35:00Z",
+      "last_error": null,
+      "attempt_count": 2,
+      "success_count": 2,
+      "last_warnings": []
+    }
+  },
+  "policy_state": {
+    "total_agents": 3,
+    "agent_ids": ["researcher", "backend", "admin"],
+    "defaults": {"deny_on_missing_agent": true}
+  },
+  "available_servers": ["brave-search", "postgres"],
+  "config_paths": {
+    "mcp_config": "/path/to/mcp-servers.json",
+    "gateway_rules": "/path/to/gateway-rules.json"
+  },
+  "message": "Gateway is operational. Check reload_status for hot reload health."
+}
+```
+
+**Example:**
+```python
+# Check gateway health and reload status
+status = await client.call_tool("get_gateway_status", {
+    "agent_id": "admin"
+})
+
+# Verify last reload was successful
+if status["reload_status"]["gateway_rules"]["last_error"]:
+    print("Warning: Last rule reload failed!")
+```
+
 ### Error Handling
 
 All tools return structured errors with clear messages:
@@ -455,9 +523,9 @@ uv run pytest tests/test_integration_m1.py -v
 ```
 
 **Test Results:**
-- 276 tests (100% passing)
+- 420 tests (100% passing)
 - 92% code coverage
-- Unit tests: 252
+- Unit tests: 396
 - Integration tests: 24
 
 ### Testing with MCP Inspector
@@ -559,22 +627,27 @@ asyncio.run(test())
 ```
 agent-mcp-gateway/
 ├── src/                          # Source code
-│   ├── config.py                 # Configuration loading
-│   ├── policy.py                 # Policy engine
+│   ├── config.py                 # Configuration loading & validation
+│   ├── policy.py                 # Policy engine (thread-safe)
 │   ├── audit.py                  # Audit logging
-│   ├── proxy.py                  # Proxy manager
+│   ├── proxy.py                  # Proxy manager (hot reload)
 │   ├── metrics.py                # Metrics collection
 │   ├── middleware.py             # Access control middleware
-│   └── gateway.py                # Gateway tools
+│   ├── config_watcher.py         # Hot reload file watching
+│   └── gateway.py                # Gateway tools + diagnostics
 ├── tests/                        # Test suite
 │   ├── test_config.py            # Config tests
-│   ├── test_policy.py            # Policy tests
+│   ├── test_policy.py            # Policy tests (with reload)
 │   ├── test_audit.py             # Audit tests
-│   ├── test_proxy.py             # Proxy tests
+│   ├── test_proxy.py             # Proxy tests (with reload)
 │   ├── test_metrics.py           # Metrics tests
 │   ├── test_middleware.py        # Middleware tests
 │   ├── test_get_server_tools.py  # Tool tests
 │   ├── test_gateway_tools.py     # Tool tests
+│   ├── test_config_watcher.py    # Hot reload tests
+│   ├── test_validation_and_reload.py  # Validation tests
+│   ├── test_integration_reload.py     # Hot reload integration
+│   ├── test_hot_reload_e2e.py    # End-to-end hot reload
 │   └── test_integration_m1.py    # Integration tests
 ├── config/                       # Configuration files
 │   ├── mcp-servers.json          # MCP servers config
