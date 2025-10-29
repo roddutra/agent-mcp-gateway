@@ -18,12 +18,16 @@ gateway = FastMCP(name="Agent MCP Gateway")
 _policy_engine: PolicyEngine | None = None
 _mcp_config: dict | None = None
 _proxy_manager: ProxyManager | None = None
+_check_config_changes_fn: Any | None = None  # Fallback reload checker
+_get_reload_status_fn: Any | None = None  # Reload status getter for diagnostics
 
 
 def initialize_gateway(
     policy_engine: PolicyEngine,
     mcp_config: dict,
-    proxy_manager: ProxyManager | None = None
+    proxy_manager: ProxyManager | None = None,
+    check_config_changes_fn: Any = None,
+    get_reload_status_fn: Any = None
 ):
     """Initialize gateway with policy engine, MCP config, and proxy manager.
 
@@ -33,11 +37,15 @@ def initialize_gateway(
         policy_engine: PolicyEngine instance for access control
         mcp_config: MCP servers configuration dictionary
         proxy_manager: Optional ProxyManager instance (required for get_server_tools)
+        check_config_changes_fn: Optional function to check for config changes (fallback mechanism)
+        get_reload_status_fn: Optional function to get reload status for diagnostics
     """
-    global _policy_engine, _mcp_config, _proxy_manager
+    global _policy_engine, _mcp_config, _proxy_manager, _check_config_changes_fn, _get_reload_status_fn
     _policy_engine = policy_engine
     _mcp_config = mcp_config
     _proxy_manager = proxy_manager
+    _check_config_changes_fn = check_config_changes_fn
+    _get_reload_status_fn = get_reload_status_fn
 
 
 @gateway.tool
@@ -240,6 +248,13 @@ async def get_server_tools(
             "tokens_used": null
         }
     """
+    # Check for config changes (fallback mechanism for when file watching doesn't work)
+    if _check_config_changes_fn:
+        try:
+            _check_config_changes_fn()
+        except Exception:
+            pass  # Don't let config check errors break tool execution
+
     # Parse comma-separated names string into list
     names_list: Optional[list[str]] = None
     if names is not None and names.strip():
@@ -472,3 +487,110 @@ async def _execute_tool_impl(
 
 # Register the tool with FastMCP
 execute_tool = gateway.tool(_execute_tool_impl)
+
+
+@gateway.tool
+async def get_gateway_status(agent_id: str) -> dict:
+    """Get comprehensive gateway status and diagnostics.
+
+    This tool provides visibility into gateway health and configuration state,
+    including hot reload status, policy engine state, and available servers.
+    Useful for debugging configuration issues and verifying that config changes
+    have been applied successfully.
+
+    Args:
+        agent_id: Identifier of the calling agent (required for all gateway tools)
+
+    Returns:
+        Dictionary containing:
+        - reload_status: Hot reload attempt/success timestamps, errors, and warnings
+          for both mcp_config and gateway_rules files
+        - policy_state: Current PolicyEngine configuration (agent count, defaults)
+        - available_servers: List of configured MCP server names
+        - config_paths: Paths to configuration files
+        - message: Human-readable status message
+
+    Example:
+        >>> await get_gateway_status("researcher")
+        {
+            "reload_status": {
+                "mcp_config": {
+                    "last_attempt": "2025-01-15T10:30:00",
+                    "last_success": "2025-01-15T10:30:00",
+                    "last_error": None,
+                    "attempt_count": 3,
+                    "success_count": 3
+                },
+                "gateway_rules": {
+                    "last_attempt": "2025-01-15T10:35:00",
+                    "last_success": "2025-01-15T10:35:00",
+                    "last_error": None,
+                    "attempt_count": 2,
+                    "success_count": 2,
+                    "last_warnings": []
+                }
+            },
+            "policy_state": {
+                "total_agents": 3,
+                "agent_ids": ["researcher", "backend", "admin"],
+                "defaults": {"deny_on_missing_agent": True}
+            },
+            "available_servers": ["brave-search", "postgres", "filesystem"],
+            "config_paths": {
+                "mcp_config": "/path/to/mcp-servers.json",
+                "gateway_rules": "/path/to/gateway-rules.json"
+            },
+            "message": "Gateway is operational. Check reload_status for hot reload health."
+        }
+    """
+    # Get reload status if available
+    reload_status = None
+    if _get_reload_status_fn:
+        try:
+            reload_status = _get_reload_status_fn()
+            # Convert datetime objects to ISO strings for JSON serialization
+            if reload_status:
+                for config_type in ["mcp_config", "gateway_rules"]:
+                    if config_type in reload_status:
+                        for key in ["last_attempt", "last_success"]:
+                            if reload_status[config_type].get(key):
+                                reload_status[config_type][key] = reload_status[config_type][key].isoformat()
+        except Exception:
+            reload_status = {"error": "Failed to retrieve reload status"}
+
+    # Get PolicyEngine state
+    policy_state = {}
+    if _policy_engine:
+        try:
+            policy_state = {
+                "total_agents": len(_policy_engine.agents),
+                "agent_ids": list(_policy_engine.agents.keys()),
+                "defaults": _policy_engine.defaults,
+            }
+        except Exception:
+            policy_state = {"error": "Failed to retrieve policy state"}
+
+    # Get available servers
+    available_servers = []
+    if _mcp_config and "mcpServers" in _mcp_config:
+        available_servers = list(_mcp_config["mcpServers"].keys())
+
+    # Get config file paths from src/config.py
+    config_paths = {}
+    try:
+        from src.config import get_stored_config_paths
+        mcp_path, rules_path = get_stored_config_paths()
+        config_paths = {
+            "mcp_config": mcp_path,
+            "gateway_rules": rules_path,
+        }
+    except Exception:
+        config_paths = {"error": "Failed to retrieve config paths"}
+
+    return {
+        "reload_status": reload_status,
+        "policy_state": policy_state,
+        "available_servers": available_servers,
+        "config_paths": config_paths,
+        "message": "Gateway is operational. Check reload_status for hot reload health."
+    }

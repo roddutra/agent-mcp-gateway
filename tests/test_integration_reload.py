@@ -466,13 +466,13 @@ class TestValidationFailurePreservesOldConfig:
 
     @pytest.mark.asyncio
     async def test_cross_reference_validation_failure(self, temp_configs):
-        """Test that rules referencing non-existent servers are rejected.
+        """Test that rules referencing non-existent servers succeed with warnings.
 
         Flow:
         1. Start with valid config and rules
         2. Modify rules to reference non-existent server
-        3. Verify validation fails
-        4. Verify old rules still active
+        3. Verify reload succeeds (cross-reference warnings are non-fatal)
+        4. Verify new rules are loaded (undefined servers are simply ignored)
         """
         mcp_path, rules_path = temp_configs
 
@@ -519,10 +519,10 @@ class TestValidationFailurePreservesOldConfig:
             except asyncio.TimeoutError:
                 pytest.fail("Reload callback was not triggered")
 
-            # Verify validation failed
-            assert reload_success is False
-            assert reload_error is not None
-            assert "undefined servers" in reload_error
+            # Verify reload succeeded (with warnings)
+            # Cross-reference validation warnings are no longer fatal
+            assert reload_success is True
+            assert reload_error is None
 
         finally:
             watcher.stop()

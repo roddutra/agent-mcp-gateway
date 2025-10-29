@@ -704,8 +704,8 @@ class TestReloadConfigs:
         assert error is not None
         assert "Invalid gateway rules" in error
 
-    def test_reload_undefined_server_in_rules(self, tmp_path):
-        """Test error when rules reference undefined servers."""
+    def test_reload_undefined_server_in_rules(self, tmp_path, caplog, capsys):
+        """Test that rules with undefined servers succeed with warnings."""
         mcp_file = tmp_path / "mcp.json"
         rules_file = tmp_path / "rules.json"
 
@@ -725,15 +725,34 @@ class TestReloadConfigs:
             }
         }))
 
-        mcp_config, gateway_rules, error = reload_configs(
-            str(mcp_file), str(rules_file)
-        )
+        # Import module to access the getter function
+        from src.config import get_last_validation_warnings
 
-        assert mcp_config is None
-        assert gateway_rules is None
-        assert error is not None
-        assert "undefined servers" in error
-        assert "nonexistent" in error
+        with caplog.at_level("WARNING"):
+            mcp_config, gateway_rules, error = reload_configs(
+                str(mcp_file), str(rules_file)
+            )
+
+        # Reload should succeed
+        assert mcp_config is not None
+        assert gateway_rules is not None
+        assert error is None
+        assert "postgres" in mcp_config["mcpServers"]
+        assert "test" in gateway_rules["agents"]
+
+        # Check that warnings were logged
+        assert any("undefined server" in record.message.lower() for record in caplog.records)
+        assert any("nonexistent" in record.message for record in caplog.records)
+
+        # Check stderr output
+        captured = capsys.readouterr()
+        assert "[HOT RELOAD WARNING]" in captured.err
+        assert "nonexistent" in captured.err
+
+        # Check that warnings are accessible via getter
+        warnings = get_last_validation_warnings()
+        assert len(warnings) > 0
+        assert any("nonexistent" in w for w in warnings)
 
     def test_reload_path_expansion(self, tmp_path):
         """Test that paths are expanded correctly."""

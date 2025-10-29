@@ -84,7 +84,7 @@ class TestConfigWatcherInitialization:
             on_gateway_rules_changed=Mock()
         )
 
-        assert watcher.debounce_seconds == 0.3
+        assert watcher.debounce_seconds == 0.1
 
     def test_initialization_custom_debounce(self, tmp_path):
         """Test custom debounce time."""

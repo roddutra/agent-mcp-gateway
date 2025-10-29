@@ -2,8 +2,12 @@
 
 import asyncio
 import logging
+import logging.handlers
 import os
 import sys
+import threading
+from datetime import datetime
+from typing import Optional
 from src.gateway import gateway, initialize_gateway
 from src.config import load_mcp_config, load_gateway_rules, get_config_path, validate_rules_against_servers, reload_configs
 from src.policy import PolicyEngine
@@ -19,7 +23,22 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     stream=sys.stderr
 )
+
+# Add file-based debug logging for MCP Inspector scenarios
+# (Inspector captures stdout/stderr, so we need a separate log file)
+debug_log_path = os.path.join(os.path.dirname(__file__), 'gateway-debug.log')
+debug_handler = logging.FileHandler(debug_log_path, mode='w')  # Overwrite on each start
+debug_handler.setLevel(logging.DEBUG)
+debug_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+debug_handler.setFormatter(debug_formatter)
+
+# Add to root logger
+root_logger = logging.getLogger()
+root_logger.addHandler(debug_handler)
+root_logger.setLevel(logging.DEBUG)
+
 logger = logging.getLogger(__name__)
+logger.debug(f"Debug logging initialized - writing to: {debug_log_path}")
 
 # Module-level storage for components (needed by reload callbacks)
 _mcp_config_path: str = ""
@@ -27,6 +46,57 @@ _gateway_rules_path: str = ""
 _policy_engine: PolicyEngine | None = None
 _proxy_manager: ProxyManager | None = None
 _config_watcher: ConfigWatcher | None = None
+
+# Track last modification times for fallback reload checking
+_last_mcp_config_mtime: float = 0.0
+_last_gateway_rules_mtime: float = 0.0
+
+# Hot reload status tracking
+_reload_status_lock = threading.Lock()
+_mcp_config_reload_status = {
+    "last_attempt": None,  # datetime
+    "last_success": None,  # datetime
+    "last_error": None,    # str or None
+    "attempt_count": 0,
+    "success_count": 0,
+}
+_gateway_rules_reload_status = {
+    "last_attempt": None,  # datetime
+    "last_success": None,  # datetime
+    "last_error": None,    # str or None
+    "attempt_count": 0,
+    "success_count": 0,
+    "last_warnings": [],   # list[str]
+}
+
+
+def check_config_changes() -> None:
+    """Check if config files have changed and trigger reload if needed.
+
+    This is a fallback mechanism in case file watching doesn't work (e.g., when
+    running through MCP Inspector). It checks file modification times and triggers
+    reload callbacks if files have changed since last check.
+    """
+    global _last_mcp_config_mtime, _last_gateway_rules_mtime
+
+    try:
+        # Check MCP config
+        if os.path.exists(_mcp_config_path):
+            current_mtime = os.path.getmtime(_mcp_config_path)
+            if _last_mcp_config_mtime > 0 and current_mtime > _last_mcp_config_mtime:
+                logger.debug(f"Detected MCP config change via mtime check: {current_mtime} > {_last_mcp_config_mtime}")
+                on_mcp_config_changed(_mcp_config_path)
+            _last_mcp_config_mtime = current_mtime
+
+        # Check gateway rules
+        if os.path.exists(_gateway_rules_path):
+            current_mtime = os.path.getmtime(_gateway_rules_path)
+            if _last_gateway_rules_mtime > 0 and current_mtime > _last_gateway_rules_mtime:
+                logger.debug(f"Detected gateway rules change via mtime check: {current_mtime} > {_last_gateway_rules_mtime}")
+                on_gateway_rules_changed(_gateway_rules_path)
+            _last_gateway_rules_mtime = current_mtime
+    except Exception as e:
+        logger.debug(f"Error checking config changes: {e}")
 
 
 def on_mcp_config_changed(config_path: str) -> None:
@@ -39,15 +109,31 @@ def on_mcp_config_changed(config_path: str) -> None:
     Args:
         config_path: Absolute path to the changed MCP config file
     """
+    import time
+
+    # Record reload attempt
+    with _reload_status_lock:
+        _mcp_config_reload_status["last_attempt"] = datetime.now()
+        _mcp_config_reload_status["attempt_count"] += 1
+
+    logger.debug(f"!!! CALLBACK TRIGGERED !!! on_mcp_config_changed called")
+    logger.debug(f"  - config_path: {config_path}")
+    logger.debug(f"  - current time: {time.time()}")
+    logger.debug(f"  - thread: {threading.current_thread().name}")
+
     logger.info(f"MCP server configuration file changed: {config_path}")
     # Also print to stderr so user definitely sees it
     print(f"\n[HOT RELOAD] Detected change in MCP server config file: {config_path}", file=sys.stderr)
+    print(f"[HOT RELOAD] Timestamp: {datetime.now().isoformat()}", file=sys.stderr)
     print(f"[HOT RELOAD] Reloading and validating new configuration...", file=sys.stderr)
 
     try:
         # Get the proxy_manager and gateway_rules_path from module globals
         if not _proxy_manager or not _gateway_rules_path:
-            logger.error("Cannot reload: components not initialized")
+            error_msg = "Cannot reload: components not initialized"
+            logger.error(error_msg)
+            with _reload_status_lock:
+                _mcp_config_reload_status["last_error"] = error_msg
             return
 
         # Load and validate both configs (reload_configs validates cross-references)
@@ -59,6 +145,8 @@ def on_mcp_config_changed(config_path: str) -> None:
         if error:
             logger.error(f"Failed to reload MCP server configuration: {error}")
             logger.info("Keeping existing MCP server configuration")
+            with _reload_status_lock:
+                _mcp_config_reload_status["last_error"] = error
             return
 
         logger.info("MCP server configuration validated successfully")
@@ -81,19 +169,35 @@ def on_mcp_config_changed(config_path: str) -> None:
                     logger.info("ProxyManager reloaded successfully")
                     print(f"[HOT RELOAD] MCP server configuration reloaded successfully", file=sys.stderr)
                     print(f"[HOT RELOAD] Proxy connections updated", file=sys.stderr)
+
+                    # Record success
+                    with _reload_status_lock:
+                        _mcp_config_reload_status["last_success"] = datetime.now()
+                        _mcp_config_reload_status["last_error"] = None
+                        _mcp_config_reload_status["success_count"] += 1
                 else:
                     logger.error(f"ProxyManager reload failed: {reload_error}")
                     logger.info("Keeping existing proxy connections")
                     print(f"[HOT RELOAD] ERROR: Failed to reload proxy manager: {reload_error}", file=sys.stderr)
+
+                    # Record error
+                    with _reload_status_lock:
+                        _mcp_config_reload_status["last_error"] = f"ProxyManager reload failed: {reload_error}"
             finally:
                 # Clean up the event loop
                 reload_loop.close()
         except Exception as e:
-            logger.error(f"Error running ProxyManager reload: {e}")
+            error_msg = f"Error running ProxyManager reload: {e}"
+            logger.error(error_msg)
+            with _reload_status_lock:
+                _mcp_config_reload_status["last_error"] = error_msg
 
     except Exception as e:
-        logger.error(f"Unexpected error reloading MCP server configuration: {e}", exc_info=True)
+        error_msg = f"Unexpected error reloading MCP server configuration: {e}"
+        logger.error(error_msg, exc_info=True)
         logger.info("Keeping existing MCP server configuration")
+        with _reload_status_lock:
+            _mcp_config_reload_status["last_error"] = error_msg
 
 
 def on_gateway_rules_changed(rules_path: str) -> None:
@@ -106,15 +210,31 @@ def on_gateway_rules_changed(rules_path: str) -> None:
     Args:
         rules_path: Absolute path to the changed gateway rules file
     """
+    import time
+
+    # Record reload attempt
+    with _reload_status_lock:
+        _gateway_rules_reload_status["last_attempt"] = datetime.now()
+        _gateway_rules_reload_status["attempt_count"] += 1
+
+    logger.debug(f"!!! CALLBACK TRIGGERED !!! on_gateway_rules_changed called")
+    logger.debug(f"  - rules_path: {rules_path}")
+    logger.debug(f"  - current time: {time.time()}")
+    logger.debug(f"  - thread: {threading.current_thread().name}")
+
     logger.info(f"Gateway rules configuration file changed: {rules_path}")
     # Also print to stderr so user definitely sees it
     print(f"\n[HOT RELOAD] Detected change in gateway rules file: {rules_path}", file=sys.stderr)
+    print(f"[HOT RELOAD] Timestamp: {datetime.now().isoformat()}", file=sys.stderr)
     print(f"[HOT RELOAD] Reloading and validating new rules...", file=sys.stderr)
 
     try:
         # Get the policy_engine and mcp_config_path from module globals
         if not _policy_engine or not _mcp_config_path:
-            logger.error("Cannot reload: components not initialized")
+            error_msg = "Cannot reload: components not initialized"
+            logger.error(error_msg)
+            with _reload_status_lock:
+                _gateway_rules_reload_status["last_error"] = error_msg
             return
 
         # Load and validate both configs (reload_configs validates cross-references)
@@ -126,9 +246,14 @@ def on_gateway_rules_changed(rules_path: str) -> None:
         if error:
             logger.error(f"Failed to reload gateway rules: {error}")
             logger.info("Keeping existing gateway rules")
+            with _reload_status_lock:
+                _gateway_rules_reload_status["last_error"] = error
             return
 
         logger.info("Gateway rules validated successfully")
+
+        # Check for validation warnings
+        warnings = validate_rules_against_servers(gateway_rules, mcp_config)
 
         # Reload PolicyEngine (synchronous operation)
         success, reload_error = _policy_engine.reload(gateway_rules)
@@ -137,25 +262,67 @@ def on_gateway_rules_changed(rules_path: str) -> None:
             # Also print to stderr so user definitely sees it
             print(f"\n[HOT RELOAD] Gateway rules reloaded successfully at {rules_path}", file=sys.stderr)
             print(f"[HOT RELOAD] Policy changes are now active", file=sys.stderr)
+
+            # If we got warnings, show them prominently
+            if warnings:
+                print(f"\n[HOT RELOAD WARNING] Configuration references undefined servers:", file=sys.stderr)
+                for warning in warnings:
+                    print(f"  - {warning}", file=sys.stderr)
+                print(f"[HOT RELOAD WARNING] These rules will be ignored until servers are added", file=sys.stderr)
+
+            # Record success
+            with _reload_status_lock:
+                _gateway_rules_reload_status["last_success"] = datetime.now()
+                _gateway_rules_reload_status["last_error"] = None
+                _gateway_rules_reload_status["success_count"] += 1
+                _gateway_rules_reload_status["last_warnings"] = warnings
         else:
             logger.error(f"PolicyEngine reload failed: {reload_error}")
             logger.info("Keeping existing policy rules")
             print(f"\n[HOT RELOAD] ERROR: Failed to reload gateway rules: {reload_error}", file=sys.stderr)
 
+            # Record error
+            with _reload_status_lock:
+                _gateway_rules_reload_status["last_error"] = f"PolicyEngine reload failed: {reload_error}"
+
     except Exception as e:
-        logger.error(f"Unexpected error reloading gateway rules: {e}", exc_info=True)
+        error_msg = f"Unexpected error reloading gateway rules: {e}"
+        logger.error(error_msg, exc_info=True)
         logger.info("Keeping existing gateway rules")
+        with _reload_status_lock:
+            _gateway_rules_reload_status["last_error"] = error_msg
+
+
+def get_reload_status() -> dict:
+    """Get current hot reload status for diagnostics.
+
+    Returns:
+        Dictionary containing reload status for both config files,
+        including attempt/success timestamps, error messages, and warnings.
+    """
+    with _reload_status_lock:
+        return {
+            "mcp_config": _mcp_config_reload_status.copy(),
+            "gateway_rules": _gateway_rules_reload_status.copy(),
+        }
 
 
 def main():
     """Initialize and run the Agent MCP Gateway."""
     global _mcp_config_path, _gateway_rules_path, _policy_engine, _proxy_manager, _config_watcher
+    global _last_mcp_config_mtime, _last_gateway_rules_mtime
 
     try:
         # Get configuration file paths from environment or use defaults
         _mcp_config_path = get_config_path("GATEWAY_MCP_CONFIG", "./config/mcp-servers.json")
         _gateway_rules_path = get_config_path("GATEWAY_RULES", "./config/gateway-rules.json")
         audit_log_path = os.environ.get("GATEWAY_AUDIT_LOG", "./logs/audit.jsonl")
+
+        # Initialize modification times for fallback reload checking
+        if os.path.exists(_mcp_config_path):
+            _last_mcp_config_mtime = os.path.getmtime(_mcp_config_path)
+        if os.path.exists(_gateway_rules_path):
+            _last_gateway_rules_mtime = os.path.getmtime(_gateway_rules_path)
 
         print(f"Loading MCP server configuration from: {_mcp_config_path}", file=sys.stderr)
         print(f"Loading gateway rules from: {_gateway_rules_path}", file=sys.stderr)
@@ -206,9 +373,19 @@ def main():
         print(f"  - Access control middleware registered", file=sys.stderr)
 
         # Initialize gateway with all components
-        initialize_gateway(_policy_engine, mcp_config, _proxy_manager)
+        initialize_gateway(_policy_engine, mcp_config, _proxy_manager, check_config_changes, get_reload_status)
 
         # Initialize ConfigWatcher for hot reloading
+        logger.debug("=== ConfigWatcher Initialization Starting ===")
+        logger.debug(f"MCP config path: {_mcp_config_path}")
+        logger.debug(f"MCP config path (absolute): {os.path.abspath(_mcp_config_path)}")
+        logger.debug(f"MCP config exists: {os.path.exists(_mcp_config_path)}")
+        logger.debug(f"Gateway rules path: {_gateway_rules_path}")
+        logger.debug(f"Gateway rules path (absolute): {os.path.abspath(_gateway_rules_path)}")
+        logger.debug(f"Gateway rules exists: {os.path.exists(_gateway_rules_path)}")
+        logger.debug(f"on_mcp_config_changed callback: {on_mcp_config_changed}")
+        logger.debug(f"on_gateway_rules_changed callback: {on_gateway_rules_changed}")
+
         try:
             _config_watcher = ConfigWatcher(
                 mcp_config_path=_mcp_config_path,
@@ -217,9 +394,23 @@ def main():
                 on_gateway_rules_changed=on_gateway_rules_changed,
                 debounce_seconds=0.3
             )
+            logger.debug("ConfigWatcher instance created successfully")
+
             _config_watcher.start()
+            logger.debug("ConfigWatcher.start() called successfully")
+
+            # Check if observer is running
+            if hasattr(_config_watcher, 'observer') and _config_watcher.observer:
+                logger.debug(f"Observer is alive: {_config_watcher.observer.is_alive()}")
+                logger.debug(f"Observer thread: {_config_watcher.observer}")
+            else:
+                logger.warning("Observer not initialized or None")
+
             print(f"  - Configuration file watching enabled (hot reload)", file=sys.stderr)
+            logger.debug("=== ConfigWatcher Initialization Complete ===")
+
         except Exception as e:
+            logger.error(f"FAILED to initialize ConfigWatcher: {e}", exc_info=True)
             print(f"  - Warning: Could not start config file watcher: {e}", file=sys.stderr)
             print(f"  - Hot reload disabled, but gateway will continue normally", file=sys.stderr)
 

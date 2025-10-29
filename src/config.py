@@ -1,15 +1,23 @@
 """Configuration management for Agent MCP Gateway."""
 
 import json
+import logging
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
 
+# Set up logger
+logger = logging.getLogger(__name__)
+
 # Global variables to store config file paths for reloading
 _mcp_config_path: Optional[str] = None
 _gateway_rules_path: Optional[str] = None
+
+# Store validation warnings from the last reload
+_last_validation_warnings: list[str] = []
 
 
 def validate_mcp_config(config: dict) -> tuple[bool, Optional[str]]:
@@ -318,11 +326,31 @@ def reload_configs(
         return None, None, f"Invalid gateway rules: {error}"
 
     # Cross-validate: check that servers referenced in rules exist in config
+    global _last_validation_warnings
     warnings = validate_rules_against_servers(gateway_rules, mcp_config)
+    _last_validation_warnings = warnings  # Store for diagnostics
+
     if warnings:
-        # Include warnings in the error message for transparency
+        # Log warnings but continue - undefined servers are not fatal
         warning_text = "\n".join(f"  - {w}" for w in warnings)
-        return None, None, f"Gateway rules reference undefined servers:\n{warning_text}"
+
+        # Log to Python logger
+        logger.warning(
+            "Gateway rules reference servers not currently loaded:\n%s",
+            warning_text
+        )
+
+        # Log to stderr for visibility
+        print(
+            "[HOT RELOAD WARNING] Gateway rules reference servers not currently loaded:",
+            file=sys.stderr
+        )
+        for warning in warnings:
+            print(f"  - {warning}", file=sys.stderr)
+        print(
+            "[HOT RELOAD WARNING] These rules will be ignored until the servers are added to mcp-servers.json",
+            file=sys.stderr
+        )
 
     return mcp_config, gateway_rules, None
 
@@ -749,3 +777,13 @@ def get_stored_config_paths() -> tuple[Optional[str], Optional[str]]:
         if the corresponding config has not been loaded yet.
     """
     return _mcp_config_path, _gateway_rules_path
+
+
+def get_last_validation_warnings() -> list[str]:
+    """Get warnings from the last config validation.
+
+    Returns:
+        List of warning messages from the last reload_configs() call.
+        Empty list if no warnings or no reload has occurred yet.
+    """
+    return _last_validation_warnings.copy()

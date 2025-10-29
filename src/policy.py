@@ -14,6 +14,7 @@ Precedence Order (CRITICAL - DO NOT CHANGE):
 
 import fnmatch
 import logging
+import threading
 from typing import Literal, Optional
 
 
@@ -46,6 +47,7 @@ class PolicyEngine:
         self.rules = rules
         self.agents = rules.get("agents", {})
         self.defaults = rules.get("defaults", {})
+        self._lock = threading.RLock()  # Reentrant lock for nested calls
 
     def can_access_server(self, agent_id: str, server: str) -> bool:
         """Check if agent can access a server.
@@ -62,37 +64,38 @@ class PolicyEngine:
         Returns:
             True if agent can access server, False otherwise
         """
-        # Check if agent exists in rules
-        if agent_id not in self.agents:
-            # Unknown agent - check default policy
-            return not self.defaults.get("deny_on_missing_agent", True)
+        with self._lock:
+            # Check if agent exists in rules
+            if agent_id not in self.agents:
+                # Unknown agent - check default policy
+                return not self.defaults.get("deny_on_missing_agent", True)
 
-        agent_rules = self.agents[agent_id]
+            agent_rules = self.agents[agent_id]
 
-        # Check deny rules first (deny takes precedence)
-        deny_servers = agent_rules.get("deny", {}).get("servers", [])
-        if server in deny_servers or "*" in deny_servers:
-            return False
-
-        # Check for wildcard deny patterns
-        for pattern in deny_servers:
-            if self._matches_pattern(server, pattern):
+            # Check deny rules first (deny takes precedence)
+            deny_servers = agent_rules.get("deny", {}).get("servers", [])
+            if server in deny_servers or "*" in deny_servers:
                 return False
 
-        # Check allow rules
-        allow_servers = agent_rules.get("allow", {}).get("servers", [])
+            # Check for wildcard deny patterns
+            for pattern in deny_servers:
+                if self._matches_pattern(server, pattern):
+                    return False
 
-        # Explicit allow or wildcard allow
-        if server in allow_servers or "*" in allow_servers:
-            return True
+            # Check allow rules
+            allow_servers = agent_rules.get("allow", {}).get("servers", [])
 
-        # Check for wildcard allow patterns
-        for pattern in allow_servers:
-            if self._matches_pattern(server, pattern):
+            # Explicit allow or wildcard allow
+            if server in allow_servers or "*" in allow_servers:
                 return True
 
-        # Not explicitly allowed
-        return False
+            # Check for wildcard allow patterns
+            for pattern in allow_servers:
+                if self._matches_pattern(server, pattern):
+                    return True
+
+            # Not explicitly allowed
+            return False
 
     def can_access_tool(self, agent_id: str, server: str, tool: str) -> bool:
         """Check if agent can access a specific tool.
@@ -112,61 +115,62 @@ class PolicyEngine:
         Returns:
             True if agent can access tool, False otherwise
         """
-        # First, agent must have access to the server
-        if not self.can_access_server(agent_id, server):
-            return False
-
-        # Check if agent exists in rules
-        if agent_id not in self.agents:
-            # Unknown agent but has server access - check default policy
-            return not self.defaults.get("deny_on_missing_agent", True)
-
-        agent_rules = self.agents[agent_id]
-
-        # Get tool rules for this server
-        deny_tools = agent_rules.get("deny", {}).get("tools", {}).get(server, [])
-        allow_tools = agent_rules.get("allow", {}).get("tools", {}).get(server, [])
-
-        # Separate explicit rules from wildcard patterns
-        explicit_deny = []
-        wildcard_deny = []
-        explicit_allow = []
-        wildcard_allow = []
-
-        for rule in deny_tools:
-            if "*" in rule:
-                wildcard_deny.append(rule)
-            else:
-                explicit_deny.append(rule)
-
-        for rule in allow_tools:
-            if "*" in rule:
-                wildcard_allow.append(rule)
-            else:
-                explicit_allow.append(rule)
-
-        # Apply precedence order (CRITICAL - DO NOT CHANGE)
-
-        # 1. Explicit deny rules
-        if tool in explicit_deny:
-            return False
-
-        # 2. Explicit allow rules
-        if tool in explicit_allow:
-            return True
-
-        # 3. Wildcard deny rules
-        for pattern in wildcard_deny:
-            if self._matches_pattern(tool, pattern):
+        with self._lock:
+            # First, agent must have access to the server
+            if not self.can_access_server(agent_id, server):
                 return False
 
-        # 4. Wildcard allow rules
-        for pattern in wildcard_allow:
-            if self._matches_pattern(tool, pattern):
+            # Check if agent exists in rules
+            if agent_id not in self.agents:
+                # Unknown agent but has server access - check default policy
+                return not self.defaults.get("deny_on_missing_agent", True)
+
+            agent_rules = self.agents[agent_id]
+
+            # Get tool rules for this server
+            deny_tools = agent_rules.get("deny", {}).get("tools", {}).get(server, [])
+            allow_tools = agent_rules.get("allow", {}).get("tools", {}).get(server, [])
+
+            # Separate explicit rules from wildcard patterns
+            explicit_deny = []
+            wildcard_deny = []
+            explicit_allow = []
+            wildcard_allow = []
+
+            for rule in deny_tools:
+                if "*" in rule:
+                    wildcard_deny.append(rule)
+                else:
+                    explicit_deny.append(rule)
+
+            for rule in allow_tools:
+                if "*" in rule:
+                    wildcard_allow.append(rule)
+                else:
+                    explicit_allow.append(rule)
+
+            # Apply precedence order (CRITICAL - DO NOT CHANGE)
+
+            # 1. Explicit deny rules
+            if tool in explicit_deny:
+                return False
+
+            # 2. Explicit allow rules
+            if tool in explicit_allow:
                 return True
 
-        # 5. Default policy - if no rules match, deny
-        return False
+            # 3. Wildcard deny rules
+            for pattern in wildcard_deny:
+                if self._matches_pattern(tool, pattern):
+                    return False
+
+            # 4. Wildcard allow rules
+            for pattern in wildcard_allow:
+                if self._matches_pattern(tool, pattern):
+                    return True
+
+            # 5. Default policy - if no rules match, deny
+            return False
 
     def get_allowed_servers(self, agent_id: str) -> list[str]:
         """Get list of servers this agent can access.
@@ -180,45 +184,46 @@ class PolicyEngine:
         Returns:
             List of server names the agent can access, or ["*"] for wildcard
         """
-        # Check if agent exists in rules
-        if agent_id not in self.agents:
-            # Unknown agent - check default policy
-            if self.defaults.get("deny_on_missing_agent", True):
-                return []
-            else:
-                # If not denying unknown agents, return empty list
-                # (caller should interpret this as "depends on what servers exist")
-                return []
+        with self._lock:
+            # Check if agent exists in rules
+            if agent_id not in self.agents:
+                # Unknown agent - check default policy
+                if self.defaults.get("deny_on_missing_agent", True):
+                    return []
+                else:
+                    # If not denying unknown agents, return empty list
+                    # (caller should interpret this as "depends on what servers exist")
+                    return []
 
-        agent_rules = self.agents[agent_id]
-        allow_servers = agent_rules.get("allow", {}).get("servers", [])
-        deny_servers = agent_rules.get("deny", {}).get("servers", [])
+            agent_rules = self.agents[agent_id]
+            allow_servers = agent_rules.get("allow", {}).get("servers", [])
+            deny_servers = agent_rules.get("deny", {}).get("servers", [])
 
-        # If wildcard allow and no wildcard deny, return wildcard
-        if "*" in allow_servers and "*" not in deny_servers:
-            return ["*"]
+            # If wildcard allow and no wildcard deny, return wildcard
+            if "*" in allow_servers and "*" not in deny_servers:
+                return ["*"]
 
-        # Filter out denied servers
-        allowed = []
-        for server in allow_servers:
-            if server == "*":
-                continue
+            # Filter out denied servers
+            allowed = []
+            for server in allow_servers:
+                if server == "*":
+                    continue
 
-            # Check if this server is denied
-            is_denied = False
-            if server in deny_servers:
-                is_denied = True
-            else:
-                # Check wildcard deny patterns
-                for pattern in deny_servers:
-                    if self._matches_pattern(server, pattern):
-                        is_denied = True
-                        break
+                # Check if this server is denied
+                is_denied = False
+                if server in deny_servers:
+                    is_denied = True
+                else:
+                    # Check wildcard deny patterns
+                    for pattern in deny_servers:
+                        if self._matches_pattern(server, pattern):
+                            is_denied = True
+                            break
 
-            if not is_denied:
-                allowed.append(server)
+                if not is_denied:
+                    allowed.append(server)
 
-        return allowed
+            return allowed
 
     def get_allowed_tools(self, agent_id: str, server: str) -> list[str] | Literal["*"]:
         """Get list of allowed tools for agent on server.
@@ -233,26 +238,27 @@ class PolicyEngine:
         Returns:
             List of tool names or "*" for wildcard access
         """
-        # Agent must have server access first
-        if not self.can_access_server(agent_id, server):
-            return []
+        with self._lock:
+            # Agent must have server access first
+            if not self.can_access_server(agent_id, server):
+                return []
 
-        # Check if agent exists in rules
-        if agent_id not in self.agents:
-            # Unknown agent but has server access
-            if not self.defaults.get("deny_on_missing_agent", True):
+            # Check if agent exists in rules
+            if agent_id not in self.agents:
+                # Unknown agent but has server access
+                if not self.defaults.get("deny_on_missing_agent", True):
+                    return "*"
+                return []
+
+            agent_rules = self.agents[agent_id]
+            allow_tools = agent_rules.get("allow", {}).get("tools", {}).get(server, [])
+
+            # If wildcard allow, return "*"
+            if "*" in allow_tools:
                 return "*"
-            return []
 
-        agent_rules = self.agents[agent_id]
-        allow_tools = agent_rules.get("allow", {}).get("tools", {}).get(server, [])
-
-        # If wildcard allow, return "*"
-        if "*" in allow_tools:
-            return "*"
-
-        # Return list of allowed tools (including patterns)
-        return allow_tools
+            # Return list of allowed tools (including patterns)
+            return allow_tools
 
     def get_policy_decision_reason(self, agent_id: str, server: str, tool: str | None = None) -> str:
         """Get human-readable reason for policy decision.
@@ -268,77 +274,78 @@ class PolicyEngine:
         Returns:
             String explaining why access was allowed/denied
         """
-        # Check if agent exists
-        if agent_id not in self.agents:
-            if self.defaults.get("deny_on_missing_agent", True):
-                return f"Agent '{agent_id}' not found in rules; default policy denies access"
-            else:
-                return f"Agent '{agent_id}' not found in rules; default policy allows access"
+        with self._lock:
+            # Check if agent exists
+            if agent_id not in self.agents:
+                if self.defaults.get("deny_on_missing_agent", True):
+                    return f"Agent '{agent_id}' not found in rules; default policy denies access"
+                else:
+                    return f"Agent '{agent_id}' not found in rules; default policy allows access"
 
-        agent_rules = self.agents[agent_id]
+            agent_rules = self.agents[agent_id]
 
-        # Check server access
-        deny_servers = agent_rules.get("deny", {}).get("servers", [])
-        allow_servers = agent_rules.get("allow", {}).get("servers", [])
+            # Check server access
+            deny_servers = agent_rules.get("deny", {}).get("servers", [])
+            allow_servers = agent_rules.get("allow", {}).get("servers", [])
 
-        # Check explicit server deny
-        if server in deny_servers:
-            return f"Server '{server}' explicitly denied for agent '{agent_id}'"
+            # Check explicit server deny
+            if server in deny_servers:
+                return f"Server '{server}' explicitly denied for agent '{agent_id}'"
 
-        # Check wildcard server deny
-        for pattern in deny_servers:
-            if self._matches_pattern(server, pattern):
-                return f"Server '{server}' denied by pattern '{pattern}' for agent '{agent_id}'"
-
-        # Check server allow
-        server_allowed = False
-        server_allow_reason = ""
-
-        if server in allow_servers:
-            server_allowed = True
-            server_allow_reason = f"Server '{server}' explicitly allowed"
-        elif "*" in allow_servers:
-            server_allowed = True
-            server_allow_reason = "Server allowed by wildcard '*'"
-        else:
-            # Check wildcard patterns
-            for pattern in allow_servers:
+            # Check wildcard server deny
+            for pattern in deny_servers:
                 if self._matches_pattern(server, pattern):
-                    server_allowed = True
-                    server_allow_reason = f"Server '{server}' allowed by pattern '{pattern}'"
-                    break
+                    return f"Server '{server}' denied by pattern '{pattern}' for agent '{agent_id}'"
 
-        if not server_allowed:
-            return f"Server '{server}' not in allowed list for agent '{agent_id}'"
+            # Check server allow
+            server_allowed = False
+            server_allow_reason = ""
 
-        # If no tool specified, return server access reason
-        if tool is None:
-            return server_allow_reason
+            if server in allow_servers:
+                server_allowed = True
+                server_allow_reason = f"Server '{server}' explicitly allowed"
+            elif "*" in allow_servers:
+                server_allowed = True
+                server_allow_reason = "Server allowed by wildcard '*'"
+            else:
+                # Check wildcard patterns
+                for pattern in allow_servers:
+                    if self._matches_pattern(server, pattern):
+                        server_allowed = True
+                        server_allow_reason = f"Server '{server}' allowed by pattern '{pattern}'"
+                        break
 
-        # Check tool access
-        deny_tools = agent_rules.get("deny", {}).get("tools", {}).get(server, [])
-        allow_tools = agent_rules.get("allow", {}).get("tools", {}).get(server, [])
+            if not server_allowed:
+                return f"Server '{server}' not in allowed list for agent '{agent_id}'"
 
-        # Check explicit tool deny
-        if tool in deny_tools:
-            return f"Tool '{tool}' explicitly denied for agent '{agent_id}' on server '{server}'"
+            # If no tool specified, return server access reason
+            if tool is None:
+                return server_allow_reason
 
-        # Check explicit tool allow
-        if tool in allow_tools:
-            return f"Tool '{tool}' explicitly allowed for agent '{agent_id}' on server '{server}'"
+            # Check tool access
+            deny_tools = agent_rules.get("deny", {}).get("tools", {}).get(server, [])
+            allow_tools = agent_rules.get("allow", {}).get("tools", {}).get(server, [])
 
-        # Check wildcard deny patterns
-        for pattern in deny_tools:
-            if "*" in pattern and self._matches_pattern(tool, pattern):
-                return f"Tool '{tool}' denied by pattern '{pattern}' for agent '{agent_id}' on server '{server}'"
+            # Check explicit tool deny
+            if tool in deny_tools:
+                return f"Tool '{tool}' explicitly denied for agent '{agent_id}' on server '{server}'"
 
-        # Check wildcard allow patterns
-        for pattern in allow_tools:
-            if "*" in pattern and self._matches_pattern(tool, pattern):
-                return f"Tool '{tool}' allowed by pattern '{pattern}' for agent '{agent_id}' on server '{server}'"
+            # Check explicit tool allow
+            if tool in allow_tools:
+                return f"Tool '{tool}' explicitly allowed for agent '{agent_id}' on server '{server}'"
 
-        # No matching rule
-        return f"Tool '{tool}' not in allowed list for agent '{agent_id}' on server '{server}'"
+            # Check wildcard deny patterns
+            for pattern in deny_tools:
+                if "*" in pattern and self._matches_pattern(tool, pattern):
+                    return f"Tool '{tool}' denied by pattern '{pattern}' for agent '{agent_id}' on server '{server}'"
+
+            # Check wildcard allow patterns
+            for pattern in allow_tools:
+                if "*" in pattern and self._matches_pattern(tool, pattern):
+                    return f"Tool '{tool}' allowed by pattern '{pattern}' for agent '{agent_id}' on server '{server}'"
+
+            # No matching rule
+            return f"Tool '{tool}' not in allowed list for agent '{agent_id}' on server '{server}'"
 
     def _matches_pattern(self, name: str, pattern: str) -> bool:
         """Check if name matches wildcard pattern.
@@ -399,9 +406,8 @@ class PolicyEngine:
         the current rules remain unchanged. If validation succeeds, rules are
         atomically swapped to the new configuration.
 
-        Thread-safety: This method is NOT thread-safe by itself. If PolicyEngine
-        is accessed from multiple threads, external synchronization (e.g., lock)
-        should be used by the caller.
+        Thread-safety: This method is thread-safe and uses an internal lock to
+        prevent race conditions during reload operations.
 
         Args:
             new_rules: New gateway rules configuration with structure:
@@ -428,60 +434,61 @@ class PolicyEngine:
             ... else:
             ...     print(f"Reload failed: {error}")
         """
-        logger.info("PolicyEngine reload initiated")
+        with self._lock:
+            logger.info("PolicyEngine reload initiated")
 
-        # Import validation function to avoid circular dependency at module level
-        from src.config import validate_gateway_rules
+            # Import validation function to avoid circular dependency at module level
+            from src.config import validate_gateway_rules
 
-        # Validate new rules structure
-        valid, error_msg = validate_gateway_rules(new_rules)
-        if not valid:
-            logger.error(f"PolicyEngine reload failed: Validation error: {error_msg}")
-            return False, f"Validation error: {error_msg}"
+            # Validate new rules structure
+            valid, error_msg = validate_gateway_rules(new_rules)
+            if not valid:
+                logger.error(f"PolicyEngine reload failed: Validation error: {error_msg}")
+                return False, f"Validation error: {error_msg}"
 
-        logger.info("PolicyEngine reload: Validation passed")
+            logger.info("PolicyEngine reload: Validation passed")
 
-        # Store old rules for potential rollback
-        old_rules = self.rules
+            # Store old rules for potential rollback
+            old_rules = self.rules
 
-        try:
-            # Compute diff for logging
-            diff = self._compute_rule_diff(old_rules, new_rules)
+            try:
+                # Compute diff for logging
+                diff = self._compute_rule_diff(old_rules, new_rules)
 
-            # Log changes
-            if diff["added"]:
-                logger.info(f"PolicyEngine reload: Added agents: {', '.join(diff['added'])}")
-            if diff["removed"]:
-                logger.info(f"PolicyEngine reload: Removed agents: {', '.join(diff['removed'])}")
-            if diff["modified"]:
-                logger.info(f"PolicyEngine reload: Modified agents: {', '.join(diff['modified'])}")
-            if diff["defaults_changed"]:
-                logger.info("PolicyEngine reload: Default policy changed")
+                # Log changes
+                if diff["added"]:
+                    logger.info(f"PolicyEngine reload: Added agents: {', '.join(diff['added'])}")
+                if diff["removed"]:
+                    logger.info(f"PolicyEngine reload: Removed agents: {', '.join(diff['removed'])}")
+                if diff["modified"]:
+                    logger.info(f"PolicyEngine reload: Modified agents: {', '.join(diff['modified'])}")
+                if diff["defaults_changed"]:
+                    logger.info("PolicyEngine reload: Default policy changed")
 
-            # Summarize changes
-            total_changes = len(diff["added"]) + len(diff["removed"]) + len(diff["modified"])
-            if total_changes == 0 and not diff["defaults_changed"]:
-                logger.info("PolicyEngine reload: No changes detected in rules")
-            else:
-                logger.info(
-                    f"PolicyEngine reload: Rules updated - "
-                    f"{len(diff['added'])} agents added, "
-                    f"{len(diff['removed'])} removed, "
-                    f"{len(diff['modified'])} modified"
-                )
+                # Summarize changes
+                total_changes = len(diff["added"]) + len(diff["removed"]) + len(diff["modified"])
+                if total_changes == 0 and not diff["defaults_changed"]:
+                    logger.info("PolicyEngine reload: No changes detected in rules")
+                else:
+                    logger.info(
+                        f"PolicyEngine reload: Rules updated - "
+                        f"{len(diff['added'])} agents added, "
+                        f"{len(diff['removed'])} removed, "
+                        f"{len(diff['modified'])} modified"
+                    )
 
-            # Atomic swap: Update internal state
-            self.rules = new_rules
-            self.agents = new_rules.get("agents", {})
-            self.defaults = new_rules.get("defaults", {})
+                # Atomic swap: Update internal state
+                self.rules = new_rules
+                self.agents = new_rules.get("agents", {})
+                self.defaults = new_rules.get("defaults", {})
 
-            logger.info("PolicyEngine reload complete")
-            return True, None
+                logger.info("PolicyEngine reload complete")
+                return True, None
 
-        except Exception as e:
-            # Rollback on any error during swap
-            logger.error(f"PolicyEngine reload failed: Unexpected error during swap: {e}")
-            self.rules = old_rules
-            self.agents = old_rules.get("agents", {})
-            self.defaults = old_rules.get("defaults", {})
-            return False, f"Unexpected error during reload: {str(e)}"
+            except Exception as e:
+                # Rollback on any error during swap
+                logger.error(f"PolicyEngine reload failed: Unexpected error during swap: {e}")
+                self.rules = old_rules
+                self.agents = old_rules.get("agents", {})
+                self.defaults = old_rules.get("defaults", {})
+                return False, f"Unexpected error during reload: {str(e)}"

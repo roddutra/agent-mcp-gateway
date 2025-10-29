@@ -53,7 +53,7 @@ class ConfigWatcher:
         gateway_rules_path: str,
         on_mcp_config_changed: Callable[[str], None],
         on_gateway_rules_changed: Callable[[str], None],
-        debounce_seconds: float = 0.3,
+        debounce_seconds: float = 0.1,  # Reduced from 0.3 for faster response
     ):
         """Initialize the configuration file watcher.
 
@@ -284,6 +284,13 @@ class _ConfigFileEventHandler(FileSystemEventHandler):
         """
         try:
             file_path = Path(path).resolve()
+            logger.debug(f"[EventHandler] Processing event for: {path}")
+            logger.debug(f"[EventHandler] Resolved to: {file_path}")
+            logger.debug(f"[EventHandler] Watched MCP config: {self.watcher.mcp_config_path}")
+            logger.debug(f"[EventHandler] Watched gateway rules: {self.watcher.gateway_rules_path}")
+            logger.debug(f"[EventHandler] Matches MCP config: {file_path == self.watcher.mcp_config_path}")
+            logger.debug(f"[EventHandler] Matches gateway rules: {file_path == self.watcher.gateway_rules_path}")
+
             self.watcher._handle_file_change(file_path)
         except Exception as e:
-            logger.error(f"Error handling file system event for {path}: {e}")
+            logger.error(f"Error handling file system event for {path}: {e}", exc_info=True)
