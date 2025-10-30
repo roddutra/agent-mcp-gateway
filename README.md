@@ -64,21 +64,59 @@ The Agent MCP Gateway acts as a single MCP server that proxies to multiple downs
 
 ## Quick Start
 
-```bash
-# 1. Install dependencies
-uv sync
+### 1. Install Dependencies
 
-# 2. Set up configuration files
+```bash
+uv sync
+```
+
+### 2. Set Up Configuration Files
+
+```bash
 cp config/.mcp.json.example .mcp.json
 cp config/.mcp-gateway-rules.json.example .mcp-gateway-rules.json
 
 # Edit configs with your servers and rules...
 # Note: .mcp.json is the standard MCP config format used by Claude Code
+```
 
-# 3. Run the gateway
+### 3. Add Gateway to Your MCP Client
+
+**Claude Code CLI:**
+```bash
+claude mcp add agent-mcp-gateway \
+  --command "uv" \
+  --args "run" "python" "/path/to/agent-mcp-gateway/main.py" \
+  --directory "/path/to/agent-mcp-gateway"
+```
+
+**Manual MCP Client Configuration** (Claude Desktop, etc.):
+```json
+{
+  "mcpServers": {
+    "agent-mcp-gateway": {
+      "command": "uv",
+      "args": ["run", "python", "/path/to/agent-mcp-gateway/main.py"],
+      "cwd": "/path/to/agent-mcp-gateway",
+      "env": {
+        "GATEWAY_DEFAULT_AGENT": "developer"
+      }
+    }
+  }
+}
+```
+
+Replace `/path/to/agent-mcp-gateway` with the actual path to your gateway installation.
+
+### 4. Development Usage (Optional)
+
+For local development and testing:
+
+```bash
+# Run gateway directly
 uv run python main.py
 
-# 4. Test with MCP Inspector
+# Test with MCP Inspector
 npx @modelcontextprotocol/inspector uv run python main.py
 ```
 
@@ -250,13 +288,42 @@ uv run python main.py
 
 ### Starting the Gateway
 
+**In MCP Clients (Recommended):**
+
+Add to your MCP client configuration (e.g., Claude Desktop config):
+```json
+{
+  "mcpServers": {
+    "agent-mcp-gateway": {
+      "command": "uv",
+      "args": ["run", "python", "/path/to/agent-mcp-gateway/main.py"],
+      "cwd": "/path/to/agent-mcp-gateway",
+      "env": {
+        "GATEWAY_MCP_CONFIG": ".mcp.json",
+        "GATEWAY_RULES": ".mcp-gateway-rules.json"
+      }
+    }
+  }
+}
+```
+
+Or use Claude Code CLI:
+```bash
+claude mcp add agent-mcp-gateway \
+  --command "uv" \
+  --args "run" "python" "/path/to/agent-mcp-gateway/main.py" \
+  --directory "/path/to/agent-mcp-gateway"
+```
+
+**For Development/Testing:**
+
 ```bash
 # Use default config paths
 uv run python main.py
 
-# Or specify custom paths
+# Or specify custom paths via environment
 export GATEWAY_MCP_CONFIG=./custom-mcp-config.json
-export GATEWAY_RULES=./custom-.mcp-gateway-rules.json
+export GATEWAY_RULES=./custom-gateway-rules.json
 export GATEWAY_AUDIT_LOG=./custom-audit.jsonl
 uv run python main.py
 ```
@@ -613,17 +680,13 @@ export GATEWAY_RULES=/etc/mcp-gateway/rules.json
 
 **Example Secure Setup:**
 ```bash
-# 1. Create rules directory outside project
-mkdir -p ~/.claude
+# 1. Move rules file to secure location (outside project directory)
+mv .mcp-gateway-rules.json ~/.claude/mcp-gateway-rules.json
 
-# 2. Move rules file to secure location
-cp .mcp-gateway-rules.json ~/.claude/mcp-gateway-rules.json
-
-# 3. Set environment variable
+# 2. Configure environment variable in your MCP client or shell
 export GATEWAY_RULES=~/.claude/mcp-gateway-rules.json
 
-# 4. Start gateway
-uv run python main.py
+# 3. Add gateway to your MCP client configuration (see Quick Start for examples)
 ```
 
 **Recommendation:** If your gateway rules are used for security-critical access control, always store them outside the project directory. If they're only used for context optimization convenience, in-project storage is acceptable.

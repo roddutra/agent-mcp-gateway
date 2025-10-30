@@ -23,8 +23,11 @@ Agent MCP Gateway is an MCP server that acts as a proxy/gateway to multiple down
 # Install dependencies
 uv sync
 
-# Run the gateway
+# Run the gateway (for development/testing)
 uv run python main.py
+
+# For production use, add to MCP client configuration
+# See README.md Quick Start section for MCP client setup examples
 ```
 
 ### Package Management
