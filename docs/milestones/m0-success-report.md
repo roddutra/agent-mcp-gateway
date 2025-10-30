@@ -173,7 +173,7 @@ Successfully implemented all foundational components for the Agent MCP Gateway w
 ### Supporting Files
 
 1. **main_test.py** - Test entry point with test configs
-2. **M0_SUCCESS_REPORT.md** - This document
+2. **m0-success-report.md** - This document
 
 ---
 
@@ -258,7 +258,7 @@ agent-mcp-gateway/
 ├── main.py (updated, 66 lines)
 ├── main_test.py (created)
 ├── test_integration.py (created)
-└── M0_SUCCESS_REPORT.md (this file)
+└── m0-success-report.md (this file)
 ```
 
 ---

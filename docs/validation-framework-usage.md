@@ -394,6 +394,6 @@ def test_reload_valid_configs():
 
 ## See Also
 
-- [Validation Framework Summary](../VALIDATION_FRAMEWORK_SUMMARY.md) - Complete implementation details
+- [Validation Framework Summary](../validation-framework-summary.md) - Complete implementation details
 - [Test Suite](../tests/test_validation_and_reload.py) - Comprehensive test examples
 - [Demo Script](../tests/demo_validation.py) - Interactive demonstrations

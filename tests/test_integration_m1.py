@@ -1,4 +1,4 @@
-"""Integration tests for Agent MCP Gateway M1-Core milestone.
+"""Integration tests for Agent MCP Gateway m1-core milestone.
 
 This module contains end-to-end integration tests that verify:
 - Full workflow: list_servers → get_server_tools → execute_tool

@@ -660,10 +660,10 @@ agent-mcp-gateway/
 ├── docs/                         # Documentation
 │   └── specs/                    # Specifications
 │       ├── PRD.md                # Product requirements
-│       ├── M0-Foundation.md      # M0 spec
-│       ├── M1-Core.md            # M1 spec
-│       ├── M2-Production.md      # M2 spec (planned)
-│       └── M3-DX.md              # M3 spec (planned)
+│       ├── m0-foundation.md      # M0 spec
+│       ├── m1-core.md            # M1 spec
+│       ├── m2-production.md      # M2 spec (planned)
+│       └── m3-dx.md              # M3 spec (planned)
 ├── logs/                         # Audit logs (auto-created)
 ├── main.py                       # Entry point
 ├── pyproject.toml                # Python dependencies
@@ -832,10 +832,10 @@ docker run -v ./config:/config agent-mcp-gateway
 ## Documentation
 
 - [Product Requirements Document](docs/specs/PRD.md)
-- [M0: Foundation Spec](docs/specs/M0-Foundation.md)
-- [M0: Success Report](M0_SUCCESS_REPORT.md)
-- [M1: Core Spec](docs/specs/M1-Core.md)
-- [M1: Success Report](M1_SUCCESS_REPORT.md)
+- [M0: Foundation Spec](docs/specs/m0-foundation.md)
+- [M0: Success Report](docs/milestones/m0-success-report.md)
+- [M1: Core Spec](docs/specs/m1-core.md)
+- [M1: Success Report](docs/milestones/m1-success-report.md)
 - [FastMCP Implementation Guide](docs/fastmcp-implementation-guide.md)
 - [Claude Code Subagent Limitations](docs/claude-code-subagent-mcp-limitations.md)
 

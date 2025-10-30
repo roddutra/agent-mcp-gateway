@@ -196,7 +196,7 @@ Codes: `DENIED_BY_POLICY`, `SERVER_UNAVAILABLE`, `TOOL_NOT_FOUND`, `INVALID_AGEN
 ## Implementation Milestones
 
 ### M0: Foundation
-**📋 [View detailed tasks →](./M0-Foundation.md)**
+**📋 [View detailed tasks →](./m0-foundation.md)**
 
 - Gateway with stdio
 - Config loading
@@ -204,7 +204,7 @@ Codes: `DENIED_BY_POLICY`, `SERVER_UNAVAILABLE`, `TOOL_NOT_FOUND`, `INVALID_AGEN
 - Audit logging
 
 ### M1: Core
-**📋 [View detailed tasks →](./M1-Core.md)**
+**📋 [View detailed tasks →](./m1-core.md)**
 
 - `get_server_tools` with filtering
 - `execute_tool` with proxying
@@ -212,14 +212,14 @@ Codes: `DENIED_BY_POLICY`, `SERVER_UNAVAILABLE`, `TOOL_NOT_FOUND`, `INVALID_AGEN
 - Metrics
 
 ### M2: Production
-**📋 [View detailed tasks →](./M2-Production.md)**
+**📋 [View detailed tasks →](./m2-production.md)**
 
 - HTTP transport
 - Health checks
 - Error handling
 
 ### M3: DX
-**📋 [View detailed tasks →](./M3-DX.md)**
+**📋 [View detailed tasks →](./m3-dx.md)**
 
 - Single-agent mode
 - Config validation CLI

@@ -271,20 +271,20 @@ GATEWAY_INIT_STRATEGY=eager                # eager|lazy
 Store in appropriate `docs/` subdirectories based on content type:
 
 **docs/milestones/**
-- Milestone completion reports (M0_SUCCESS_REPORT.md, M1_SUCCESS_REPORT.md, etc.)
+- Milestone completion reports (m0-success-report.md, m1-success-report.md, etc.)
 - Success criteria validation
 - Performance metrics and test results
 - Historical records of milestone achievements
 
 **docs/specs/**
 - Product requirements (PRD.md)
-- Milestone specifications (M0-Foundation.md, M1-Core.md, M2-Production.md, M3-DX.md)
+- Milestone specifications (m0-foundation.md, m1-core.md, m2-production.md, m3-dx.md)
 - Technical specifications
 - Architecture decision records
 
 **docs/** (root)
-- Quick start guides (QUICKSTART_CONFIG.md)
-- Framework summaries (VALIDATION_FRAMEWORK_SUMMARY.md)
+- Quick start guides (quickstart-config.md)
+- Framework summaries (validation-framework-summary.md)
 - Implementation guides (fastmcp-implementation-guide.md)
 - General documentation that doesn't fit other categories
 
@@ -312,3 +312,7 @@ Store in `docs/temp/` (gitignored) for work-in-progress content:
 3. **Choose permanent vs temporary carefully** - If it's valuable for future reference, it's permanent
 4. **Temporary docs are truly temporary** - Move to permanent location or delete when work is done
 5. **Update existing docs** - Don't create duplicates; update existing documentation when appropriate
+
+### Documentation Naming Convention
+
+Use kebab-case for all documentation files unless the user specifies otherwise or the file already has a well-established casing convention (e.g., README.md, CLAUDE.md, PRD.md).

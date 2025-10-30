@@ -433,7 +433,7 @@ agent-mcp-gateway/
 │   ├── test_gateway_tools.py (created, 13 tests)
 │   └── test_integration_m1.py (created, 1,233 lines, 24 tests)
 ├── main.py (updated, +20 lines, now 83 total)
-└── M1_SUCCESS_REPORT.md (this file)
+└── m1-success-report.md (this file)
 ```
 
 ### Hot Reload Addition
@@ -452,8 +452,8 @@ agent-mcp-gateway/
 │   └── test_proxy.py (updated with 13 reload tests)
 ├── main.py (updated with ConfigWatcher integration)
 ├── pyproject.toml (added watchdog dependency)
-├── docs/specs/M1-Core.md (updated with hot reload tasks)
-└── M1_SUCCESS_REPORT.md (updated with hot reload completion)
+├── docs/specs/m1-core.md (updated with hot reload tasks)
+└── m1-success-report.md (updated with hot reload completion)
 ```
 
 ---
