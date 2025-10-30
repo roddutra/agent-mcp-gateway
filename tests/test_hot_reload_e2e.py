@@ -121,7 +121,7 @@ def write_config_file(path: Path, config: dict):
 
 
 class TestReloadWithUndefinedServers:
-    """Test that hot reload succeeds when rules reference servers not in mcp-servers.json."""
+    """Test that hot reload succeeds when rules reference servers not in .mcp.json."""
 
     def test_reload_configs_with_undefined_servers_succeeds(
         self, temp_config_dir, mcp_config_with_brave_only, gateway_rules_with_postgres
@@ -129,14 +129,14 @@ class TestReloadWithUndefinedServers:
         """Test that reload_configs() succeeds when rules reference undefined servers.
 
         Flow:
-        1. Create temp configs (mcp-servers.json with only brave-search)
+        1. Create temp configs (.mcp.json with only brave-search)
         2. Create rules that reference postgres (undefined server)
         3. Call reload_configs()
         4. Assert reload succeeds (returns configs, no error)
         5. Verify warnings were generated and stored
         """
         # Create config files
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         write_config_file(mcp_path, mcp_config_with_brave_only)
@@ -223,7 +223,7 @@ class TestHotReloadFlowSimulation:
         8. Verify new deny rule is enforced
         """
         # Create config files
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         write_config_file(mcp_path, mcp_config_with_brave_only)
@@ -330,7 +330,7 @@ class TestGetLastValidationWarnings:
         4. Assert warnings list contains expected messages
         """
         # Create config files
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         write_config_file(mcp_path, mcp_config_with_brave_only)
@@ -361,7 +361,7 @@ class TestGetLastValidationWarnings:
         3. Assert warnings list is empty
         """
         # Create config files
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         # First reload with undefined servers
@@ -566,7 +566,7 @@ class TestGetGatewayStatusTool:
         3. Assert response contains expected fields
         """
         # Create config files
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         write_config_file(mcp_path, mcp_config_with_brave_only)
@@ -653,7 +653,7 @@ class TestGetGatewayStatusTool:
         5. Verify agent count increased
         """
         # Create config files
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         write_config_file(mcp_path, mcp_config_with_brave_only)
@@ -743,7 +743,7 @@ class TestAllFixesWorkingTogether:
         6. Verify get_gateway_status shows correct state
         """
         # Create config files
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         # Initial MCP config (only brave-search)
@@ -924,7 +924,7 @@ class TestValidationWarningsContent:
         3. Verify warnings mention specific agents and servers
         """
         # Create configs
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         mcp_config = {

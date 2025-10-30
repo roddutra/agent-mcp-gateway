@@ -9,6 +9,7 @@ from src.config import (
     load_gateway_rules,
     validate_rules_against_servers,
     get_config_path,
+    get_mcp_config_path,
 )
 
 
@@ -17,10 +18,7 @@ def main():
     print("Agent MCP Gateway - Configuration Validator\n")
 
     # Get config paths
-    mcp_config_path = get_config_path(
-        "GATEWAY_MCP_CONFIG",
-        "./config/mcp-servers.json"
-    )
+    mcp_config_path = get_mcp_config_path()
     rules_path = get_config_path(
         "GATEWAY_RULES",
         "./config/gateway-rules.json"

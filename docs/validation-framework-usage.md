@@ -70,7 +70,7 @@ Loads and validates both configuration files in one call.
 from src.config import reload_configs
 
 mcp_config, gateway_rules, error = reload_configs(
-    "/path/to/mcp-servers.json",
+    "/path/to/.mcp.json",
     "/path/to/gateway-rules.json"
 )
 

@@ -18,7 +18,7 @@ class TestLoadMCPConfig:
 
     def test_valid_stdio_config(self, tmp_path):
         """Test loading valid stdio transport configuration."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "test-server": {
@@ -36,7 +36,7 @@ class TestLoadMCPConfig:
 
     def test_valid_http_config(self, tmp_path):
         """Test loading valid HTTP transport configuration."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "http-server": {
@@ -50,7 +50,7 @@ class TestLoadMCPConfig:
 
     def test_stdio_with_env_vars(self, tmp_path, monkeypatch):
         """Test stdio config with environment variables."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -73,7 +73,7 @@ class TestLoadMCPConfig:
 
     def test_missing_env_var_error(self, tmp_path):
         """Test error when environment variable is not set."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -93,7 +93,7 @@ class TestLoadMCPConfig:
 
     def test_http_with_headers(self, tmp_path):
         """Test HTTP config with custom headers."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -111,7 +111,7 @@ class TestLoadMCPConfig:
 
     def test_invalid_both_command_and_url(self, tmp_path):
         """Test error when both command and url are present."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -129,7 +129,7 @@ class TestLoadMCPConfig:
 
     def test_missing_transport_error(self, tmp_path):
         """Test error when neither command nor url is present."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -144,7 +144,7 @@ class TestLoadMCPConfig:
 
     def test_invalid_json_error(self, tmp_path):
         """Test error when config is not valid JSON."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text("{ invalid json }")
 
         with pytest.raises(json.JSONDecodeError):
@@ -160,7 +160,7 @@ class TestLoadMCPConfig:
 
     def test_missing_mcpservers_key(self, tmp_path):
         """Test error when mcpServers key is missing."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({"servers": {}}))
 
         with pytest.raises(ValueError) as exc_info:
@@ -169,7 +169,7 @@ class TestLoadMCPConfig:
 
     def test_invalid_url_format(self, tmp_path):
         """Test error when URL doesn't start with http:// or https://."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -184,7 +184,7 @@ class TestLoadMCPConfig:
 
     def test_invalid_args_type(self, tmp_path):
         """Test error when args is not an array."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -201,7 +201,7 @@ class TestLoadMCPConfig:
 
     def test_invalid_env_type(self, tmp_path):
         """Test error when env is not an object."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -218,7 +218,7 @@ class TestLoadMCPConfig:
 
     def test_invalid_headers_type(self, tmp_path):
         """Test error when headers is not an object."""
-        config_file = tmp_path / "mcp-servers.json"
+        config_file = tmp_path / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {
@@ -238,7 +238,7 @@ class TestLoadMCPConfig:
         # Create config in a subdirectory
         subdir = tmp_path / "configs"
         subdir.mkdir()
-        config_file = subdir / "mcp-servers.json"
+        config_file = subdir / ".mcp.json"
         config_file.write_text(json.dumps({
             "mcpServers": {
                 "server": {

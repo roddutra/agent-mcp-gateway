@@ -9,7 +9,7 @@ import threading
 from datetime import datetime
 from typing import Optional
 from src.gateway import gateway, initialize_gateway
-from src.config import load_mcp_config, load_gateway_rules, get_config_path, validate_rules_against_servers, reload_configs
+from src.config import load_mcp_config, load_gateway_rules, get_config_path, get_mcp_config_path, validate_rules_against_servers, reload_configs
 from src.policy import PolicyEngine
 from src.audit import AuditLogger
 from src.proxy import ProxyManager
@@ -102,7 +102,7 @@ def check_config_changes() -> None:
 def on_mcp_config_changed(config_path: str) -> None:
     """Handle MCP server configuration file changes.
 
-    This callback is invoked by ConfigWatcher when mcp-servers.json changes.
+    This callback is invoked by ConfigWatcher when .mcp.json changes.
     It reloads and validates both configs (since they cross-reference each other),
     then reloads the ProxyManager if validation succeeds.
 
@@ -314,7 +314,7 @@ def main():
 
     try:
         # Get configuration file paths from environment or use defaults
-        _mcp_config_path = get_config_path("GATEWAY_MCP_CONFIG", "./config/mcp-servers.json")
+        _mcp_config_path = get_mcp_config_path()
         _gateway_rules_path = get_config_path("GATEWAY_RULES", "./config/gateway-rules.json")
         audit_log_path = os.environ.get("GATEWAY_AUDIT_LOG", "./logs/audit.jsonl")
 

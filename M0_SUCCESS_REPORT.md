@@ -18,7 +18,7 @@ Successfully implemented all foundational components for the Agent MCP Gateway w
 ### Functional Requirements ✅
 
 - ✅ **Gateway loads and validates both configuration files**
-  - Loads mcp-servers.json with stdio/HTTP transport support
+  - Loads .mcp.json with stdio/HTTP transport support
   - Loads gateway-rules.json with agent policies
   - Validates structure and provides clear error messages
   - Environment variable substitution working
@@ -81,9 +81,9 @@ Successfully implemented all foundational components for the Agent MCP Gateway w
   - Timestamp format: ISO 8601 with timezone
 
 - ✅ **Example configs provided and tested**
-  - config/mcp-servers.json with 3 servers
+  - config/.mcp.json with 3 servers
   - config/gateway-rules.json with 3 agents
-  - config/mcp-servers.test.json for testing
+  - config/.mcp.test.json for testing
   - All configs validated in tests
 
 ---
@@ -166,9 +166,9 @@ Successfully implemented all foundational components for the Agent MCP Gateway w
 
 ### Configuration Files
 
-1. **config/mcp-servers.json** - Production config with env vars
+1. **config/.mcp.json** - Production config with env vars
 2. **config/gateway-rules.json** - 3 example agents
-3. **config/mcp-servers.test.json** - Test config without env vars
+3. **config/.mcp.test.json** - Test config without env vars
 
 ### Supporting Files
 
@@ -251,9 +251,9 @@ agent-mcp-gateway/
 │   ├── test_policy.py (created, 37 tests)
 │   └── test_audit.py (created, 24 tests)
 ├── config/
-│   ├── mcp-servers.json (created)
+│   ├── .mcp.json (created)
 │   ├── gateway-rules.json (created)
-│   └── mcp-servers.test.json (created)
+│   └── .mcp.test.json (created)
 ├── logs/ (directory created, auto-populated)
 ├── main.py (updated, 66 lines)
 ├── main_test.py (created)

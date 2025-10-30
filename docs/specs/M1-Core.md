@@ -657,7 +657,7 @@ class MetricsCollector:
   - [x] Test concurrent reloads handled safely
 
 **Key Enhancements:**
-- **Flexible Validation:** Rules can reference servers not currently in mcp-servers.json (logged as warnings)
+- **Flexible Validation:** Rules can reference servers not currently in .mcp.json (logged as warnings)
 - **Thread Safety:** All PolicyEngine operations protected with RLock
 - **Visibility:** Reload status tracking and diagnostic tool for troubleshooting
 - **Robustness:** 420 tests with 100% hot reload coverage

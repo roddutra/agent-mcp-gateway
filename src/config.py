@@ -348,7 +348,7 @@ def reload_configs(
         for warning in warnings:
             print(f"  - {warning}", file=sys.stderr)
         print(
-            "[HOT RELOAD WARNING] These rules will be ignored until the servers are added to mcp-servers.json",
+            "[HOT RELOAD WARNING] These rules will be ignored until the servers are added to .mcp.json",
             file=sys.stderr
         )
 
@@ -708,6 +708,30 @@ def _substitute_env_vars(obj: Any) -> Any:
     else:
         # Return other types unchanged (int, bool, None, etc.)
         return obj
+
+
+def get_mcp_config_path() -> str:
+    """Get MCP configuration file path using standard search order.
+
+    Search order:
+    1. GATEWAY_MCP_CONFIG environment variable (if set)
+    2. .mcp.json in current working directory
+    3. ./config/.mcp.json (fallback)
+
+    Returns:
+        Resolved path to .mcp.json configuration file
+    """
+    # Check environment variable first
+    if env_path := os.getenv("GATEWAY_MCP_CONFIG"):
+        return str(Path(env_path).expanduser().resolve())
+
+    # Check current working directory
+    cwd_path = Path.cwd() / ".mcp.json"
+    if cwd_path.exists():
+        return str(cwd_path.resolve())
+
+    # Fallback to config directory
+    return str(Path("./config/.mcp.json").expanduser().resolve())
 
 
 def get_config_path(env_var: str, default: str) -> str:

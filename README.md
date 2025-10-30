@@ -69,10 +69,11 @@ The Agent MCP Gateway acts as a single MCP server that proxies to multiple downs
 uv sync
 
 # 2. Set up configuration files
-cp config/mcp-servers.json.example config/mcp-servers.json
+cp config/.mcp.json.example .mcp.json
 cp config/gateway-rules.json.example config/gateway-rules.json
 
 # Edit configs with your servers and rules...
+# Note: .mcp.json is the standard MCP config format used by Claude Code
 
 # 3. Run the gateway
 uv run python main.py
@@ -113,9 +114,9 @@ The gateway requires two configuration files:
 
 ### 1. MCP Servers Configuration
 
-**File:** `config/mcp-servers.json`
+**File:** `.mcp.json` (or `config/.mcp.json`)
 
-Defines the downstream MCP servers the gateway will proxy to. Uses standard MCP configuration format:
+Defines the downstream MCP servers the gateway will proxy to. Uses the standard `.mcp.json` format compatible with Claude Code and other coding agents:
 
 ```json
 {
@@ -206,7 +207,7 @@ Defines per-agent access policies using deny-before-allow precedence:
 5. Default policy (lowest priority)
 
 **Configuration Flexibility:**
-- Rules can reference servers not currently in `mcp-servers.json`
+- Rules can reference servers not currently in `.mcp.json`
 - Undefined server references treated as warnings (not errors)
 - Allows keeping rules for temporarily removed servers
 - Hot reload applies changes immediately without restart
@@ -226,7 +227,7 @@ The gateway validates configurations at startup and during hot reload:
 
 ```bash
 uv run python main.py
-# ✓ Configuration loaded
+# ✓ Configuration loaded from .mcp.json
 # ⚠ Warning: Agent 'researcher' references undefined server 'unknown-server'
 # ℹ These rules will be ignored until the server is added
 ```
@@ -247,21 +248,23 @@ uv run python main.py
 uv run python main.py
 
 # Or specify custom paths
-export GATEWAY_MCP_CONFIG=./custom-mcp-servers.json
+export GATEWAY_MCP_CONFIG=./custom-mcp-config.json
 export GATEWAY_RULES=./custom-gateway-rules.json
 export GATEWAY_AUDIT_LOG=./custom-audit.jsonl
 uv run python main.py
 ```
 
 **Environment Variables:**
-- `GATEWAY_MCP_CONFIG` - Path to MCP servers config (default: `./config/mcp-servers.json`)
+- `GATEWAY_MCP_CONFIG` - Path to MCP servers config (default: checks `.mcp.json` in current directory, then `./config/.mcp.json`)
 - `GATEWAY_RULES` - Path to gateway rules config (default: `./config/gateway-rules.json`)
 - `GATEWAY_AUDIT_LOG` - Path to audit log file (default: `./logs/audit.jsonl`)
+
+**Note on `.mcp.json`:** This is the standard MCP configuration file used by Claude Code and other coding agents. If you already have a `.mcp.json` file configured in your development environment, the gateway can reuse it directly.
 
 ### Startup Output
 
 ```
-Loading MCP server configuration from: ./config/mcp-servers.json
+Loading MCP server configuration from: .mcp.json
 Loading gateway rules from: ./config/gateway-rules.json
 Audit log will be written to: ./logs/audit.jsonl
 
@@ -462,7 +465,7 @@ result = await client.call_tool("execute_tool", {
   },
   "available_servers": ["brave-search", "postgres"],
   "config_paths": {
-    "mcp_config": "/path/to/mcp-servers.json",
+    "mcp_config": "/path/to/.mcp.json",
     "gateway_rules": "/path/to/gateway-rules.json"
   },
   "message": "Gateway is operational. Check reload_status for hot reload health."
@@ -594,7 +597,7 @@ Expected: Search results from Brave (if server configured and running).
 If tools fail:
 1. Check the **Logs pane** for error messages
 2. Verify your `agent_id` exists in `gateway-rules.json`
-3. Confirm downstream servers are configured in `mcp-servers.json`
+3. Confirm downstream servers are configured in `.mcp.json`
 4. Check that required environment variables are set
 5. Review the **Message pane** for policy denial reasons
 
@@ -650,8 +653,9 @@ agent-mcp-gateway/
 │   ├── test_hot_reload_e2e.py    # End-to-end hot reload
 │   └── test_integration_m1.py    # Integration tests
 ├── config/                       # Configuration files
-│   ├── mcp-servers.json          # MCP servers config
+│   ├── .mcp.json.example         # MCP servers config example
 │   └── gateway-rules.json        # Access rules
+├── .mcp.json                     # MCP servers config (user-created)
 ├── docs/                         # Documentation
 │   └── specs/                    # Specifications
 │       ├── PRD.md                # Product requirements

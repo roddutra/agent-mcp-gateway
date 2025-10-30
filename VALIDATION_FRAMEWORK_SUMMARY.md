@@ -101,7 +101,7 @@ Loads and validates both configuration files without applying them to the runnin
 ```python
 # Valid configs
 mcp_config, gateway_rules, error = reload_configs(
-    "/path/to/mcp-servers.json",
+    "/path/to/.mcp.json",
     "/path/to/gateway-rules.json"
 )
 if error is None:

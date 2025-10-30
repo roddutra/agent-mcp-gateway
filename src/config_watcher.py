@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ConfigWatcher:
     """Watches configuration files for changes and triggers reload callbacks.
 
-    The watcher monitors two configuration files (mcp-servers.json and gateway-rules.json)
+    The watcher monitors two configuration files (.mcp.json and gateway-rules.json)
     and calls the appropriate callback when changes are detected. It implements debouncing
     to handle rapid file system events (e.g., editor saves that create temporary files).
 
@@ -34,7 +34,7 @@ class ConfigWatcher:
             # Reload logic here
 
         watcher = ConfigWatcher(
-            mcp_config_path="/path/to/mcp-servers.json",
+            mcp_config_path="/path/to/.mcp.json",
             gateway_rules_path="/path/to/gateway-rules.json",
             on_mcp_config_changed=on_mcp_config_changed,
             on_gateway_rules_changed=on_rules_changed,
@@ -58,7 +58,7 @@ class ConfigWatcher:
         """Initialize the configuration file watcher.
 
         Args:
-            mcp_config_path: Path to mcp-servers.json file (can be relative or absolute,
+            mcp_config_path: Path to .mcp.json file (can be relative or absolute,
                 will be resolved to absolute path)
             gateway_rules_path: Path to gateway-rules.json file (can be relative or
                 absolute, will be resolved to absolute path)

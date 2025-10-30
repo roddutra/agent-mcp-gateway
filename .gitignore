@@ -10,7 +10,8 @@ wheels/
 .venv
 
 # Configuration files with secrets (use .example files as templates)
-config/mcp-servers.json
+.mcp.json
+config/.mcp.json
 config/gateway-rules.json
 # Keep example and test configs
 !config/*.example

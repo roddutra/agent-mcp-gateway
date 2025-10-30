@@ -28,7 +28,7 @@ Loads and validates MCP server configuration from a JSON file.
 ```python
 from src.config import load_mcp_config
 
-config = load_mcp_config("./config/mcp-servers.json")
+config = load_mcp_config("./config/.mcp.json")
 servers = config["mcpServers"]
 ```
 
@@ -61,7 +61,7 @@ Cross-validates that all servers referenced in rules exist in the MCP configurat
 ```python
 from src.config import load_mcp_config, load_gateway_rules, validate_rules_against_servers
 
-mcp_config = load_mcp_config("./config/mcp-servers.json")
+mcp_config = load_mcp_config("./config/.mcp.json")
 rules = load_gateway_rules("./config/gateway-rules.json")
 
 warnings = validate_rules_against_servers(rules, mcp_config)
@@ -79,7 +79,7 @@ from src.config import get_config_path
 
 mcp_config_path = get_config_path(
     "GATEWAY_MCP_CONFIG",
-    "./config/mcp-servers.json"
+    "./config/.mcp.json"
 )
 ```
 
@@ -87,7 +87,7 @@ mcp_config_path = get_config_path(
 
 ### MCP Servers Configuration
 
-**File:** `config/mcp-servers.json`
+**File:** `config/.mcp.json`
 
 **Structure:**
 ```json
@@ -171,7 +171,7 @@ mcp_config_path = get_config_path(
 
 ### Configuration Paths
 
-- `GATEWAY_MCP_CONFIG` - Path to MCP servers config (default: `./config/mcp-servers.json`)
+- `GATEWAY_MCP_CONFIG` - Path to MCP servers config (default: `./config/.mcp.json`)
 - `GATEWAY_RULES` - Path to gateway rules config (default: `./config/gateway-rules.json`)
 
 ### Variable Substitution
@@ -279,7 +279,7 @@ os.environ["POSTGRES_URL"] = "postgresql://localhost/db"
 # Get config paths
 mcp_config_path = get_config_path(
     "GATEWAY_MCP_CONFIG",
-    "./config/mcp-servers.json"
+    "./config/.mcp.json"
 )
 rules_path = get_config_path(
     "GATEWAY_RULES",

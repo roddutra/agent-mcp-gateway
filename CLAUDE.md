@@ -100,7 +100,7 @@ execute_tool(
 
 ### Configuration Structure
 
-**MCP Servers Config** (`mcp-servers.json`):
+**MCP Servers Config** (`.mcp.json`):
 ```json
 {
   "mcpServers": {
@@ -116,6 +116,8 @@ execute_tool(
   }
 }
 ```
+
+**Note:** `.mcp.json` is the standard MCP configuration file format used by Claude Code and other coding agents.
 
 **Gateway Rules Config** (`gateway-rules.json`):
 ```json
@@ -171,7 +173,7 @@ See `docs/claude-code-subagent-mcp-limitations.md` for full details on this limi
 from fastmcp import FastMCP
 
 # Load downstream server config
-mcp_config = load_config("mcp-servers.json")
+mcp_config = load_config(".mcp.json")
 
 # Create gateway with automatic proxying
 gateway = FastMCP.as_proxy(mcp_config, name="Agent MCP Gateway")
@@ -225,7 +227,7 @@ async def list_servers(agent_id: str, ctx: Context) -> list[dict]:
 ## Environment Variables
 
 ```bash
-GATEWAY_MCP_CONFIG=./mcp-servers.json      # MCP server definitions
+GATEWAY_MCP_CONFIG=.mcp.json               # MCP server definitions (default: .mcp.json, fallback: ./config/.mcp.json)
 GATEWAY_RULES=./gateway-rules.json         # Agent policies
 GATEWAY_DEFAULT_AGENT=developer            # Single-agent mode fallback
 GATEWAY_TRANSPORT=stdio                    # stdio|http

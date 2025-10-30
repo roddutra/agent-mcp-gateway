@@ -42,7 +42,7 @@ M0 establishes the foundational infrastructure for the Agent MCP Gateway. This m
   │   ├── policy.py           # Policy engine
   │   └── audit.py            # Audit logging
   ├── config/
-  │   ├── mcp-servers.json    # Downstream server definitions
+  │   ├── .mcp.json           # Downstream server definitions
   │   └── gateway-rules.json  # Agent access policies
   ├── tests/
   │   └── __init__.py
@@ -74,14 +74,14 @@ M0 establishes the foundational infrastructure for the Agent MCP Gateway. This m
   - [x] Validate hierarchical agent names (`team.role`)
 
 - [x] Add configuration validation
-  - [x] Verify all referenced servers in rules exist in mcp-servers.json
+  - [x] Verify all referenced servers in rules exist in .mcp.json
   - [x] Warn about undefined agents if `deny_on_missing_agent` is false
   - [x] Check for conflicting rules within same agent
 
 - [x] Environment variable support
   - [x] Support `GATEWAY_MCP_CONFIG` for server config path
   - [x] Support `GATEWAY_RULES` for rules config path
-  - [x] Provide sensible defaults (./config/mcp-servers.json, ./config/gateway-rules.json)
+  - [x] Provide sensible defaults (./config/.mcp.json, ./config/gateway-rules.json)
 
 **Code Reference:**
 ```python
@@ -302,7 +302,7 @@ from src.audit import AuditLogger
 
 def main():
     # Load configurations
-    mcp_config_path = os.getenv("GATEWAY_MCP_CONFIG", "./config/mcp-servers.json")
+    mcp_config_path = os.getenv("GATEWAY_MCP_CONFIG", "./config/.mcp.json")
     rules_path = os.getenv("GATEWAY_RULES", "./config/gateway-rules.json")
 
     mcp_config = load_mcp_config(mcp_config_path)
@@ -329,7 +329,7 @@ if __name__ == "__main__":
 
 ### Example Configuration Files
 
-- [x] Create example mcp-servers.json
+- [x] Create example .mcp.json
   ```json
   {
     "mcpServers": {
@@ -458,7 +458,7 @@ def test_policy_deny_before_allow():
 1. **Configuration Loading**
    ```bash
    # Test with valid config
-   GATEWAY_MCP_CONFIG=./config/mcp-servers.json \
+   GATEWAY_MCP_CONFIG=./config/.mcp.json \
    GATEWAY_RULES=./config/gateway-rules.json \
    uv run python main.py
 

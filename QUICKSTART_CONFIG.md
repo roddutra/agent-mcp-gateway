@@ -34,7 +34,9 @@ export $(cat .env | xargs)
 
 ### MCP Servers Configuration
 
-Edit `config/mcp-servers.json` to define your MCP servers:
+Edit `.mcp.json` (or `config/.mcp.json`) to define your MCP servers:
+
+**Note:** `.mcp.json` is the standard MCP configuration file format used by Claude Code and other coding agents. If you already have a `.mcp.json` file in your development environment, the gateway can use it directly.
 
 ```json
 {
@@ -95,7 +97,7 @@ python validate_config.py
 ```
 Agent MCP Gateway - Configuration Validator
 
-MCP Servers Config: /path/to/config/mcp-servers.json
+MCP Servers Config: /path/to/.mcp.json
 Gateway Rules: /path/to/config/gateway-rules.json
 
 Loading MCP server configuration...
@@ -131,9 +133,10 @@ from src.config import (
 # (or load from .env using python-dotenv)
 
 # Get configuration paths
+# Default checks .mcp.json in current dir, then ./config/.mcp.json
 mcp_config_path = get_config_path(
     "GATEWAY_MCP_CONFIG",
-    "./config/mcp-servers.json"
+    ".mcp.json"
 )
 rules_path = get_config_path(
     "GATEWAY_RULES",
@@ -178,7 +181,7 @@ Warning: Agent "researcher" allow.servers references undefined server "unknown-s
 ```
 
 **Solution:**
-Add the server to `config/mcp-servers.json` or remove the reference from gateway rules.
+Add the server to `.mcp.json` or remove the reference from gateway rules.
 
 ### Issue: Invalid JSON
 
@@ -230,14 +233,16 @@ All tests should pass:
 
 1. **Review** `src/CONFIG_README.md` for detailed documentation
 2. **Customize** agent policies in `config/gateway-rules.json`
-3. **Add** more MCP servers to `config/mcp-servers.json`
+3. **Add** more MCP servers to `.mcp.json`
 4. **Integrate** the configuration module into the gateway server
+
+**Tip:** If you're using Claude Code or other coding agents that use `.mcp.json`, you can reuse that file directly with the gateway!
 
 ## Environment Variable Reference
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GATEWAY_MCP_CONFIG` | `./config/mcp-servers.json` | Path to MCP servers config |
+| `GATEWAY_MCP_CONFIG` | `.mcp.json` (fallback: `./config/.mcp.json`) | Path to MCP servers config |
 | `GATEWAY_RULES` | `./config/gateway-rules.json` | Path to gateway rules config |
 | `BRAVE_API_KEY` | *(required)* | API key for Brave Search |
 | `POSTGRES_URL` | *(required)* | PostgreSQL connection URL |

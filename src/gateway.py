@@ -537,7 +537,7 @@ async def get_gateway_status(agent_id: str) -> dict:
             },
             "available_servers": ["brave-search", "postgres", "filesystem"],
             "config_paths": {
-                "mcp_config": "/path/to/mcp-servers.json",
+                "mcp_config": "/path/to/.mcp.json",
                 "gateway_rules": "/path/to/gateway-rules.json"
             },
             "message": "Gateway is operational. Check reload_status for hot reload health."

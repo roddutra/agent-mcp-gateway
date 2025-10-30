@@ -75,7 +75,7 @@ def temp_configs(temp_config_dir):
     }
 
     # Write files
-    mcp_path = temp_config_dir / "mcp-servers.json"
+    mcp_path = temp_config_dir / ".mcp.json"
     rules_path = temp_config_dir / "gateway-rules.json"
 
     with open(mcp_path, "w") as f:
@@ -112,11 +112,11 @@ class TestFileModificationTriggersReload:
 
     @pytest.mark.asyncio
     async def test_mcp_config_modification_reloads_proxy_manager(self, temp_configs):
-        """Test that modifying mcp-servers.json triggers ProxyManager reload.
+        """Test that modifying .mcp.json triggers ProxyManager reload.
 
         Flow:
         1. Initialize ProxyManager with initial config
-        2. Modify mcp-servers.json to add a new server
+        2. Modify .mcp.json to add a new server
         3. Verify ProxyManager detects and reloads
         4. Verify new server is accessible
         5. Verify old server still works
@@ -1149,7 +1149,7 @@ class TestConfigWatcherEdgeCases:
     async def test_watcher_ignores_other_files_in_directory(self, temp_config_dir):
         """Test that watcher only triggers for watched files, not other files."""
         # Create watched configs
-        mcp_path = temp_config_dir / "mcp-servers.json"
+        mcp_path = temp_config_dir / ".mcp.json"
         rules_path = temp_config_dir / "gateway-rules.json"
 
         mcp_config = {"mcpServers": {}}

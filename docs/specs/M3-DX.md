@@ -111,7 +111,7 @@ GATEWAY_DEFAULT_AGENT=developer
 
 - [ ] Create validation command
   - [ ] Add `uv run python -m src.cli validate` command
-  - [ ] Validate mcp-servers.json structure
+  - [ ] Validate .mcp.json structure
   - [ ] Validate gateway-rules.json structure
   - [ ] Check for common errors
   - [ ] Provide helpful error messages
@@ -148,7 +148,7 @@ def cli():
     pass
 
 @cli.command()
-@click.option("--mcp-config", default="./config/mcp-servers.json", help="Path to MCP servers config")
+@click.option("--mcp-config", default="./config/.mcp.json", help="Path to MCP servers config")
 @click.option("--rules", default="./config/gateway-rules.json", help="Path to gateway rules")
 def validate(mcp_config: str, rules: str):
     """Validate gateway configuration files."""
@@ -324,7 +324,7 @@ def _generate_single_agent_config(output_path: Path):
         }
     }
 
-    with open(output_path / "mcp-servers.json", "w") as f:
+    with open(output_path / ".mcp.json", "w") as f:
         json.dump(mcp_config, f, indent=2)
 
     with open(output_path / "gateway-rules.json", "w") as f:
@@ -398,7 +398,7 @@ USER gateway
 
 # Environment variables
 ENV PATH="/app/.venv/bin:$PATH" \
-    GATEWAY_MCP_CONFIG="/config/mcp-servers.json" \
+    GATEWAY_MCP_CONFIG="/config/.mcp.json" \
     GATEWAY_RULES="/config/gateway-rules.json" \
     GATEWAY_TRANSPORT="http" \
     GATEWAY_HTTP_HOST="0.0.0.0" \
@@ -428,7 +428,7 @@ services:
       - ./config:/config:ro
       - ./logs:/logs
     environment:
-      - GATEWAY_MCP_CONFIG=/config/mcp-servers.json
+      - GATEWAY_MCP_CONFIG=/config/.mcp.json
       - GATEWAY_RULES=/config/gateway-rules.json
       - GATEWAY_TRANSPORT=http
       - GATEWAY_DEFAULT_AGENT=developer
@@ -492,7 +492,7 @@ cd agent-mcp-gateway
 uv sync
 
 # Configure
-cp config/mcp-servers.example.json config/mcp-servers.json
+cp config/.mcp.json.example config/.mcp.json
 cp config/gateway-rules.example.json config/gateway-rules.json
 
 # Run
