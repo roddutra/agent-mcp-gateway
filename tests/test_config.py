@@ -563,6 +563,119 @@ class TestGetConfigPath:
         assert "testuser" in result or "Users" in result or "home" in result
 
 
+class TestGatewayDefaultAgent:
+    """Test cases for GATEWAY_DEFAULT_AGENT environment variable."""
+
+    def test_gateway_default_agent_env_var_set(self, monkeypatch):
+        """Test that GATEWAY_DEFAULT_AGENT environment variable is read correctly."""
+        monkeypatch.setenv("GATEWAY_DEFAULT_AGENT", "researcher")
+
+        import os
+        agent = os.getenv("GATEWAY_DEFAULT_AGENT")
+        assert agent == "researcher"
+
+    def test_gateway_default_agent_env_var_not_set(self):
+        """Test behavior when GATEWAY_DEFAULT_AGENT is not set."""
+        import os
+        agent = os.getenv("GATEWAY_DEFAULT_AGENT")
+        # Should be None when not set
+        assert agent is None
+
+    def test_gateway_default_agent_with_special_characters(self, monkeypatch):
+        """Test that GATEWAY_DEFAULT_AGENT supports agent names with special chars."""
+        monkeypatch.setenv("GATEWAY_DEFAULT_AGENT", "team-backend_v2")
+
+        import os
+        agent = os.getenv("GATEWAY_DEFAULT_AGENT")
+        assert agent == "team-backend_v2"
+
+    def test_gateway_default_agent_empty_string(self, monkeypatch):
+        """Test that empty GATEWAY_DEFAULT_AGENT is treated as unset."""
+        monkeypatch.setenv("GATEWAY_DEFAULT_AGENT", "")
+
+        import os
+        agent = os.getenv("GATEWAY_DEFAULT_AGENT")
+        # Empty string should be treated as falsy in fallback logic
+        assert agent == ""
+        assert not agent  # Empty string is falsy
+
+    def test_default_agent_name_validation(self, tmp_path):
+        """Test that agent named 'default' passes validation."""
+        rules_file = tmp_path / "gateway-rules.json"
+        rules_file.write_text(json.dumps({
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api"]}
+                }
+            }
+        }))
+
+        # Should not raise any validation errors
+        rules = load_gateway_rules(str(rules_file))
+        assert "default" in rules["agents"]
+
+    def test_default_agent_coexists_with_others(self, tmp_path):
+        """Test that 'default' agent can coexist with other agents."""
+        rules_file = tmp_path / "gateway-rules.json"
+        rules_file.write_text(json.dumps({
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api"]}
+                },
+                "researcher": {
+                    "allow": {"servers": ["brave-search"]}
+                },
+                "backend": {
+                    "allow": {"servers": ["postgres"]}
+                }
+            }
+        }))
+
+        rules = load_gateway_rules(str(rules_file))
+        assert "default" in rules["agents"]
+        assert "researcher" in rules["agents"]
+        assert "backend" in rules["agents"]
+
+    def test_default_agent_with_complex_rules(self, tmp_path):
+        """Test that 'default' agent works with complex allow/deny rules."""
+        rules_file = tmp_path / "gateway-rules.json"
+        rules_file.write_text(json.dumps({
+            "agents": {
+                "default": {
+                    "allow": {
+                        "servers": ["db", "api"],
+                        "tools": {
+                            "db": ["query", "read_*"],
+                            "api": ["*"]
+                        }
+                    },
+                    "deny": {
+                        "tools": {
+                            "db": ["drop_*", "delete_*"]
+                        }
+                    }
+                }
+            },
+            "defaults": {
+                "deny_on_missing_agent": False
+            }
+        }))
+
+        rules = load_gateway_rules(str(rules_file))
+        default_agent = rules["agents"]["default"]
+
+        # Verify allow rules
+        assert "db" in default_agent["allow"]["servers"]
+        assert "api" in default_agent["allow"]["servers"]
+        assert "query" in default_agent["allow"]["tools"]["db"]
+        assert "read_*" in default_agent["allow"]["tools"]["db"]
+        assert "*" in default_agent["allow"]["tools"]["api"]
+
+        # Verify deny rules
+        assert "drop_*" in default_agent["deny"]["tools"]["db"]
+        assert "delete_*" in default_agent["deny"]["tools"]["db"]
+
+
 class TestValidateRulesAgainstServers:
     """Test cases for cross-validation of rules and servers."""
 

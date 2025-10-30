@@ -1,6 +1,6 @@
 # Milestone 3: Developer Experience
 
-**Status:** Not Started
+**Status:** Partially Implemented (Single-Agent Mode Complete)
 **Target:** Excellent developer experience with easy setup, validation, deployment, and documentation
 
 ---
@@ -34,56 +34,39 @@ M3 focuses on making the gateway easy to use, configure, deploy, and troubleshoo
 
 ### Single-Agent Mode
 
-- [ ] Implement default agent fallback
-  - [ ] Support `GATEWAY_DEFAULT_AGENT` environment variable
-  - [ ] Auto-inject agent_id when missing if default configured
-  - [ ] Log when using default agent
-  - [ ] Document single-agent use case
+- [x] Implement default agent fallback
+  - [x] Support `GATEWAY_DEFAULT_AGENT` environment variable
+  - [x] Auto-inject agent_id when missing if default configured
+  - [x] Log when using default agent
+  - [x] Document single-agent use case
+
+- [x] Create fallback chain with "default" agent
+  - [x] Priority 1: `GATEWAY_DEFAULT_AGENT` environment variable
+  - [x] Priority 2: Agent named "default" in rules (if `deny_on_missing_agent` is false)
+  - [x] Priority 3: Error if neither configured and `deny_on_missing_agent` is true
+  - [x] Follow principle of least privilege (no implicit "allow all")
+
+- [x] Update middleware for single-agent mode
+  - [x] Use fallback chain when agent_id missing
+  - [x] Support optional agent_id parameter in all tools
+  - [x] Maintain audit trail even in single-agent mode
+  - [x] Add new error codes: `FALLBACK_AGENT_NOT_IN_RULES`, `NO_FALLBACK_CONFIGURED`
 
 - [ ] Create single-agent configuration helper
   - [ ] Generate simple config for single developer
   - [ ] Allow all servers and tools for default agent
   - [ ] Provide template configuration
 
-- [ ] Update middleware for single-agent mode
-  - [ ] Use default agent when agent_id missing
-  - [ ] Skip agent_id requirement if default configured
-  - [ ] Maintain audit trail even in single-agent mode
+**Implemented Behavior:**
 
-**Code Reference:**
-```python
-# src/config.py
-import os
+The gateway now supports optional `agent_id` parameter with a secure fallback chain:
 
-def get_default_agent() -> str | None:
-    """Get configured default agent, if any."""
-    return os.getenv("GATEWAY_DEFAULT_AGENT")
+1. **Explicit agent_id** in tool call (highest priority)
+2. **GATEWAY_DEFAULT_AGENT** environment variable
+3. **"default" agent** in gateway rules (if `deny_on_missing_agent` is false)
+4. **Error** if none configured
 
-# Middleware update
-class AgentAccessControl(Middleware):
-    def __init__(self, policy_engine: PolicyEngine, default_agent: str | None = None):
-        self.policy_engine = policy_engine
-        self.default_agent = default_agent
-
-    async def on_call_tool(self, context: MiddlewareContext, call_next):
-        tool_call = context.message
-        arguments = tool_call.arguments or {}
-
-        # Extract agent identity
-        agent_id = arguments.get("agent_id")
-
-        if not agent_id:
-            if self.default_agent:
-                # Use default agent in single-agent mode
-                agent_id = self.default_agent
-                logger.debug(f"Using default agent: {agent_id}")
-            elif self.policy_engine.defaults.get("deny_on_missing_agent", True):
-                raise InvalidAgentIdError("agent_id required and no default configured")
-            else:
-                agent_id = "default"
-
-        # ... rest of middleware logic
-```
+**Security:** Follows principle of least privilege. When `deny_on_missing_agent` is `false`, it uses the "default" agent's explicit permissions - never grants implicit "allow all" access.
 
 **Example Single-Agent Config:**
 ```json
@@ -102,9 +85,33 @@ class AgentAccessControl(Middleware):
 }
 ```
 
-**Environment Variable:**
+**Usage:**
 ```bash
-GATEWAY_DEFAULT_AGENT=developer
+export GATEWAY_DEFAULT_AGENT=developer
+uv run python main.py
+# All tool calls now use "developer" agent when agent_id is not provided
+```
+
+**Example with Secure "default" Agent:**
+```json
+{
+  "agents": {
+    "developer": {
+      "allow": {
+        "servers": ["*"],
+        "tools": {"*": ["*"]}
+      }
+    },
+    "default": {
+      "deny": {
+        "servers": ["*"]
+      }
+    }
+  },
+  "defaults": {
+    "deny_on_missing_agent": false
+  }
+}
 ```
 
 ### Configuration Validation CLI
@@ -261,7 +268,7 @@ def validate_rules_config(rules_path: str, mcp_path: str) -> Tuple[List[str], Li
     if not agents:
         warnings.append("No agents configured")
 
-    for agent_name, agent_rules in agents.items():
+    for agent_id, agent_rules in agents.items():
         # Check allow rules
         if "allow" in agent_rules:
             allow = agent_rules["allow"]
@@ -270,7 +277,7 @@ def validate_rules_config(rules_path: str, mcp_path: str) -> Tuple[List[str], Li
                     if server != "*" and server not in available_servers:
                         # Note: Runtime treats this as a warning, not an error
                         # CLI can be stricter to help catch configuration issues early
-                        warnings.append(f"Agent '{agent_name}' references unknown server: {server}")
+                        warnings.append(f"Agent '{agent_id}' references unknown server: {server}")
 
         # Check deny rules
         if "deny" in agent_rules:
@@ -279,7 +286,7 @@ def validate_rules_config(rules_path: str, mcp_path: str) -> Tuple[List[str], Li
                 for server in deny["servers"]:
                     if server != "*" and server not in available_servers:
                         # Note: Runtime treats this as a warning, not an error
-                        warnings.append(f"Agent '{agent_name}' denies unknown server: {server}")
+                        warnings.append(f"Agent '{agent_id}' denies unknown server: {server}")
 
     return errors, warnings
 

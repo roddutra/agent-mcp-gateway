@@ -56,7 +56,7 @@ Agent → Gateway (3 tools, ~400 tokens) → Policy Engine → Downstream MCP Se
 
 1. **Gateway Server** (FastMCP-based)
    - Exposes 3 gateway tools: `list_servers`, `get_server_tools`, `execute_tool`
-   - All tools require `agent_id` parameter
+   - All tools accept optional `agent_id` parameter with configurable fallback
    - Built using `FastMCP.as_proxy()` for automatic downstream server proxying
 
 2. **Policy Engine** (Stateless)
@@ -76,26 +76,29 @@ Agent → Gateway (3 tools, ~400 tokens) → Policy Engine → Downstream MCP Se
 ### Gateway Tools (Exposed to Agents)
 
 ```python
-list_servers(agent_id: str, include_metadata: bool = False) -> List[Server]
+list_servers(agent_id: Optional[str] = None, include_metadata: bool = False) -> List[Server]
 # Returns MCP servers this agent can access based on policy rules
+# agent_id is optional - uses fallback chain if not provided
 
 get_server_tools(
-    agent_id: str,
+    agent_id: Optional[str] = None,
     server: str,
     names: Optional[List[str]] = None,
     pattern: Optional[str] = None,
     max_schema_tokens: Optional[int] = None
 ) -> List[Tool]
 # Returns tool definitions from a server, filtered by agent permissions
+# agent_id is optional - uses fallback chain if not provided
 
 execute_tool(
-    agent_id: str,
+    agent_id: Optional[str] = None,
     server: str,
     tool: str,
     args: dict,
     timeout_ms: Optional[int] = None
 ) -> Any
 # Proxies tool execution to downstream server
+# agent_id is optional - uses fallback chain if not provided
 ```
 
 ### Configuration Structure
@@ -137,13 +140,20 @@ execute_tool(
       "deny": {
         "tools": {"postgres": ["drop_*"]}
       }
+    },
+    "default": {
+      "deny": {
+        "servers": ["*"]
+      }
     }
   },
   "defaults": {
-    "deny_on_missing_agent": true
+    "deny_on_missing_agent": false
   }
 }
 ```
+
+**Note on "default" Agent:** The special agent named "default" is used as a fallback when `agent_id` is not provided. See Environment Variables section for `GATEWAY_DEFAULT_AGENT`.
 
 ### Policy Evaluation Rules (CRITICAL - DO NOT CHANGE)
 
@@ -154,16 +164,29 @@ execute_tool(
 4. Wildcard allow rules
 5. Default policy
 
-### Agent Identity Workaround
+### Agent Identity
 
-**Important:** Claude Code does not natively pass subagent identity to MCP servers. This gateway requires agents to explicitly include `agent_id` parameter in all tool calls.
+**Important:** Claude Code does not natively pass subagent identity to MCP servers. The gateway has implemented optional `agent_id` parameter with a configurable fallback chain.
 
-Each agent/subagent configuration must include instructions to always pass their identity:
+**Agent Identity Resolution:**
+1. Explicit `agent_id` in tool call (highest priority)
+2. `GATEWAY_DEFAULT_AGENT` environment variable
+3. Agent named "default" in gateway rules (if `deny_on_missing_agent` is false)
+4. Error if none configured and `deny_on_missing_agent` is true
+
+**For Explicit Agent Identity:**
+Each agent/subagent configuration should include instructions to pass their identity:
 ```markdown
-**CRITICAL**: When calling ANY gateway tool, you MUST include an "agent_id" parameter set to "your-agent-name".
+**RECOMMENDED**: When calling ANY gateway tool, include an "agent_id" parameter set to "your-agent-name" for explicit access control.
 ```
 
-See `docs/claude-code-subagent-mcp-limitations.md` for full details on this limitation and implementation.
+**For Single-Agent Mode:**
+Set `GATEWAY_DEFAULT_AGENT` environment variable to bypass agent_id requirement:
+```bash
+export GATEWAY_DEFAULT_AGENT=developer
+```
+
+See `docs/claude-code-subagent-mcp-limitations.md` for full details on this limitation and workarounds.
 
 ## FastMCP 2.0 Implementation Patterns
 
@@ -229,10 +252,22 @@ async def list_servers(agent_id: str, ctx: Context) -> list[dict]:
 ```bash
 GATEWAY_MCP_CONFIG=.mcp.json               # MCP server definitions (default: .mcp.json, fallback: ./config/.mcp.json)
 GATEWAY_RULES=.mcp-gateway-rules.json      # Agent policies (default: .mcp-gateway-rules.json, fallback: ./config/.mcp-gateway-rules.json)
-GATEWAY_DEFAULT_AGENT=developer            # Single-agent mode fallback
+GATEWAY_DEFAULT_AGENT=developer            # Default agent when agent_id not provided (optional, IMPLEMENTED)
 GATEWAY_TRANSPORT=stdio                    # stdio|http
 GATEWAY_INIT_STRATEGY=eager                # eager|lazy
 ```
+
+**Agent Identity Fallback Chain:**
+When `agent_id` is not provided in tool calls:
+1. Use `GATEWAY_DEFAULT_AGENT` if set (highest priority)
+2. Use agent named "default" from rules (if `deny_on_missing_agent` is false)
+3. Return error if neither configured
+
+**The `deny_on_missing_agent` Setting:**
+- **When `true` (Strict Mode):** Immediately rejects tool calls without `agent_id`, bypassing the fallback chain entirely. This effectively makes `agent_id` required, even if fallbacks are configured.
+- **When `false` (Fallback Mode):** Uses the fallback chain above. Access is never implicitly granted - the gateway falls back to the explicitly configured agent's permissions.
+
+**Security Note:** The fallback mechanism follows the principle of least privilege. When `deny_on_missing_agent` is `false`, it uses the "default" agent's explicit permissions - never grants implicit "allow all" access.
 
 ## Error Codes
 
@@ -240,6 +275,8 @@ GATEWAY_INIT_STRATEGY=eager                # eager|lazy
 - `SERVER_UNAVAILABLE` - Downstream MCP server unreachable
 - `TOOL_NOT_FOUND` - Requested tool doesn't exist
 - `INVALID_AGENT_ID` - Missing or unknown agent identifier
+- `FALLBACK_AGENT_NOT_IN_RULES` - Configured fallback agent not found in gateway rules
+- `NO_FALLBACK_CONFIGURED` - No agent_id provided and no fallback agent configured
 - `TIMEOUT` - Operation exceeded time limit
 
 ## Performance Targets
@@ -260,9 +297,11 @@ GATEWAY_INIT_STRATEGY=eager                # eager|lazy
 - **Zero modifications to downstream MCP servers** - Full compatibility with existing servers
 - **Context preservation** - 90%+ reduction in upfront token usage
 - **Deny-before-allow security** - Safe by default
+- **Principle of least privilege** - No implicit "allow all" access, even with fallbacks
 - **Transparent proxying** - Downstream servers unaware of gateway
 - **Audit everything** - Complete operation logging
 - **Configuration-driven** - No code changes for permission updates
+- **Flexible agent identity** - Optional agent_id with secure fallback chain
 
 ## Documentation Guidelines
 

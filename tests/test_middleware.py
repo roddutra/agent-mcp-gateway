@@ -199,7 +199,13 @@ class TestMiddlewareMissingAgentID:
 
     @pytest.mark.asyncio
     async def test_middleware_missing_agent_id_allow(self):
-        """Test that missing agent_id is allowed when default policy permits."""
+        """Test that missing agent_id uses fallback when default policy permits.
+
+        NOTE: This test was updated from the original implementation. Previously,
+        missing agent_id with deny_on_missing_agent=false would proceed with None.
+        Now it attempts to use fallback chain (GATEWAY_DEFAULT_AGENT or 'default' agent).
+        Since no fallback is configured in this test, it should error with helpful message.
+        """
         rules = {
             "agents": {
                 "known_agent": {
@@ -212,7 +218,7 @@ class TestMiddlewareMissingAgentID:
         policy_engine = PolicyEngine(rules)
         middleware = AgentAccessControl(policy_engine)
 
-        # Create mock context WITHOUT agent_id
+        # Create mock context WITHOUT agent_id (and no fallback configured)
         tool_call = MockToolCall(
             name="list_servers",
             arguments={"include_metadata": False}
@@ -221,18 +227,17 @@ class TestMiddlewareMissingAgentID:
         context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
 
         # Mock call_next
-        call_next = AsyncMock(return_value={"servers": []})
+        call_next = AsyncMock()
 
-        # Execute middleware - should NOT raise error
-        result = await middleware.on_call_tool(context, call_next)
+        # Execute middleware - should raise error explaining fallback options
+        # This is the new behavior: we need a fallback agent configured
+        with pytest.raises(ToolError) as exc_info:
+            await middleware.on_call_tool(context, call_next)
 
-        # Verify call proceeded
-        assert result == {"servers": []}
-        assert call_next.called
-
-        # Verify context state was set (to None in this case)
-        stored_agent = fastmcp_ctx.get_state("current_agent")
-        assert stored_agent is None
+        # Verify error message is helpful
+        error_msg = str(exc_info.value).lower()
+        assert "agent_id" in error_msg or "default" in error_msg or "gateway_default_agent" in error_msg
+        assert not call_next.called
 
 
 class TestMiddlewareGatewayTools:
@@ -511,3 +516,349 @@ class TestMiddlewareMultipleArguments:
         # Verify agent_id is still present
         assert tool_call.arguments == {"agent_id": "solo"}
         assert fastmcp_ctx.get_state("current_agent") == "solo"
+
+
+class TestMiddlewareAgentIDFallback:
+    """Test agent_id fallback chain when agent_id is missing."""
+
+    @pytest.mark.asyncio
+    async def test_fallback_to_env_var(self, monkeypatch):
+        """When agent_id missing, should use GATEWAY_DEFAULT_AGENT env var."""
+        # Mock get_default_agent_id to return "researcher"
+        from src import gateway
+        monkeypatch.setattr(gateway, "_default_agent_id", "researcher")
+
+        rules = {
+            "agents": {
+                "researcher": {
+                    "allow": {"servers": ["brave-search"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITHOUT agent_id
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock(return_value={"servers": ["brave-search"]})
+
+        # Execute middleware - should use researcher's permissions
+        result = await middleware.on_call_tool(context, call_next)
+
+        # Verify call succeeded using fallback agent
+        assert result == {"servers": ["brave-search"]}
+        assert call_next.called
+        # Verify context state was set to fallback agent
+        assert fastmcp_ctx.get_state("current_agent") == "researcher"
+
+    @pytest.mark.asyncio
+    async def test_fallback_to_default_agent(self):
+        """When agent_id missing and no env var, should use 'default' agent."""
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITHOUT agent_id (and no env var)
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock(return_value={"servers": ["api"]})
+
+        # Execute middleware - should use default agent's permissions
+        result = await middleware.on_call_tool(context, call_next)
+
+        # Verify call succeeded using default agent
+        assert result == {"servers": ["api"]}
+        assert call_next.called
+        # Verify context state was set to default agent
+        assert fastmcp_ctx.get_state("current_agent") == "default"
+
+    @pytest.mark.asyncio
+    async def test_env_var_precedence_over_default(self, monkeypatch):
+        """GATEWAY_DEFAULT_AGENT should override 'default' agent in rules."""
+        # Mock get_default_agent_id to return "researcher"
+        from src import gateway
+        monkeypatch.setattr(gateway, "_default_agent_id", "researcher")
+
+        rules = {
+            "agents": {
+                "researcher": {
+                    "allow": {"servers": ["brave-search"]}
+                },
+                "default": {
+                    "allow": {"servers": ["api"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITHOUT agent_id
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock(return_value={"servers": ["brave-search"]})
+
+        # Execute middleware
+        await middleware.on_call_tool(context, call_next)
+
+        # Verify used researcher (not default)
+        assert fastmcp_ctx.get_state("current_agent") == "researcher"
+        assert call_next.called
+
+    @pytest.mark.asyncio
+    async def test_fallback_agent_not_in_rules(self, monkeypatch):
+        """Should error if fallback agent doesn't exist in rules config."""
+        # Mock get_default_agent_id to return nonexistent agent
+        from src import gateway
+        monkeypatch.setattr(gateway, "_default_agent_id", "nonexistent")
+
+        rules = {
+            "agents": {
+                "researcher": {
+                    "allow": {"servers": ["api"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITHOUT agent_id
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock()
+
+        # Execute middleware - should raise helpful error
+        with pytest.raises(ToolError) as exc_info:
+            await middleware.on_call_tool(context, call_next)
+
+        # Verify error message is helpful
+        error_msg = str(exc_info.value)
+        assert "nonexistent" in error_msg.lower() or "fallback" in error_msg.lower() or "default" in error_msg.lower()
+        assert not call_next.called
+
+    @pytest.mark.asyncio
+    async def test_no_fallback_configured(self):
+        """Should error if no env var and no 'default' agent."""
+        rules = {
+            "agents": {
+                "researcher": {
+                    "allow": {"servers": ["api"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITHOUT agent_id (and no env var, no default agent)
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock()
+
+        # Execute middleware - should raise error explaining config options
+        with pytest.raises(ToolError) as exc_info:
+            await middleware.on_call_tool(context, call_next)
+
+        # Verify error message explains configuration options
+        error_msg = str(exc_info.value).lower()
+        assert "agent_id" in error_msg or "default" in error_msg or "gateway_default_agent" in error_msg
+        assert not call_next.called
+
+    @pytest.mark.asyncio
+    async def test_deny_on_missing_bypasses_fallback(self, monkeypatch):
+        """When deny_on_missing_agent=true, should reject without checking fallback."""
+        # Mock get_default_agent_id to return valid agent
+        from src import gateway
+        monkeypatch.setattr(gateway, "_default_agent_id", "researcher")
+
+        rules = {
+            "agents": {
+                "researcher": {
+                    "allow": {"servers": ["api"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": True}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITHOUT agent_id
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock()
+
+        # Execute middleware - should raise error immediately (doesn't use env var)
+        with pytest.raises(ToolError) as exc_info:
+            await middleware.on_call_tool(context, call_next)
+
+        # Verify error about missing agent_id
+        error_msg = str(exc_info.value)
+        assert "agent_id" in error_msg.lower()
+        assert "missing" in error_msg.lower()
+        assert not call_next.called
+
+    @pytest.mark.asyncio
+    async def test_explicit_agent_id_overrides_fallback(self, monkeypatch):
+        """When agent_id is provided, fallback should not be used."""
+        # Mock get_default_agent_id - but it should be ignored
+        from src import gateway
+        monkeypatch.setattr(gateway, "_default_agent_id", "researcher")
+
+        rules = {
+            "agents": {
+                "researcher": {
+                    "allow": {"servers": ["brave-search"]}
+                },
+                "backend": {
+                    "allow": {"servers": ["postgres"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITH explicit agent_id
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"agent_id": "backend", "include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock(return_value={"servers": ["postgres"]})
+
+        # Execute middleware
+        await middleware.on_call_tool(context, call_next)
+
+        # Verify used explicit agent_id (backend), not fallback (researcher)
+        assert fastmcp_ctx.get_state("current_agent") == "backend"
+        assert call_next.called
+
+    @pytest.mark.asyncio
+    async def test_fallback_with_special_characters(self, monkeypatch):
+        """Test fallback with agent name containing special characters."""
+        # Mock get_default_agent_id with dashes and underscores
+        from src import gateway
+        monkeypatch.setattr(gateway, "_default_agent_id", "team-backend_v2")
+
+        rules = {
+            "agents": {
+                "team-backend_v2": {
+                    "allow": {"servers": ["postgres"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITHOUT agent_id
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock(return_value={"servers": ["postgres"]})
+
+        # Execute middleware
+        await middleware.on_call_tool(context, call_next)
+
+        # Verify fallback agent with special chars was used
+        assert fastmcp_ctx.get_state("current_agent") == "team-backend_v2"
+        assert call_next.called
+
+    @pytest.mark.asyncio
+    async def test_fallback_empty_env_var_treated_as_unset(self, monkeypatch):
+        """Empty GATEWAY_DEFAULT_AGENT env var should fall back to 'default' agent."""
+        # Mock get_default_agent_id to return None (empty string evaluates to False)
+        from src import gateway
+        monkeypatch.setattr(gateway, "_default_agent_id", None)
+
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api"]}
+                }
+            },
+            "defaults": {"deny_on_missing_agent": False}
+        }
+
+        policy_engine = PolicyEngine(rules)
+        middleware = AgentAccessControl(policy_engine)
+
+        # Create mock context WITHOUT agent_id
+        tool_call = MockToolCall(
+            name="list_servers",
+            arguments={"include_metadata": False}
+        )
+        fastmcp_ctx = MockFastMCPContext()
+        context = MockMiddlewareContext(message=tool_call, fastmcp_context=fastmcp_ctx)
+
+        # Mock call_next
+        call_next = AsyncMock(return_value={"servers": ["api"]})
+
+        # Execute middleware - should fall back to 'default' agent
+        await middleware.on_call_tool(context, call_next)
+
+        # Verify used 'default' agent (not empty string)
+        assert fastmcp_ctx.get_state("current_agent") == "default"
+        assert call_next.called

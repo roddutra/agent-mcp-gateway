@@ -100,7 +100,7 @@ async def initialize_proxy_connections(mcp_config: dict) -> Dict[str, ProxyClien
 
 - [x] Implement get_server_tools tool
   - [x] Add `@gateway.tool` decorator
-  - [x] Require `agent_id: str` and `server: str` parameters
+  - [x] Accept optional `agent_id: Optional[str]` parameter and required `server: str` parameter
   - [x] Add optional `names: list[str] | None` for specific tools
   - [x] Add optional `pattern: str | None` for wildcard filtering
   - [x] Add optional `max_schema_tokens: int | None` for budget limiting
@@ -128,7 +128,7 @@ async def initialize_proxy_connections(mcp_config: dict) -> Dict[str, ProxyClien
 ```python
 @gateway.tool
 async def get_server_tools(
-    agent_id: str,
+    agent_id: Optional[str] = None,
     server: str,
     ctx: Context,
     names: list[str] | None = None,
@@ -139,7 +139,7 @@ async def get_server_tools(
     Get tool definitions from a specific MCP server, filtered by agent permissions.
 
     Args:
-        agent_id: Identifier of the agent making the request
+        agent_id: Identifier of the agent making the request (optional, uses fallback chain)
         server: Name of the downstream MCP server
         names: Optional list of specific tool names to retrieve
         pattern: Optional wildcard pattern for tool names (e.g., "get_*")
@@ -260,7 +260,7 @@ def _estimate_tool_tokens(tool) -> int:
 
 - [x] Implement execute_tool tool
   - [x] Add `@gateway.tool` decorator
-  - [x] Require `agent_id: str`, `server: str`, `tool: str`, `args: dict` parameters
+  - [x] Accept optional `agent_id: Optional[str]` parameter and required `server: str`, `tool: str`, `args: dict` parameters
   - [x] Add optional `timeout_ms: int | None` parameter
   - [x] Verify agent has access to server and tool
   - [x] Get ProxyClient for server
@@ -287,7 +287,7 @@ import asyncio
 
 @gateway.tool
 async def execute_tool(
-    agent_id: str,
+    agent_id: Optional[str] = None,
     server: str,
     tool: str,
     args: dict,
@@ -298,7 +298,7 @@ async def execute_tool(
     Execute a tool on a downstream MCP server with transparent proxying.
 
     Args:
-        agent_id: Identifier of the agent making the request
+        agent_id: Identifier of the agent making the request (optional, uses fallback chain)
         server: Name of the downstream MCP server
         tool: Name of the tool to execute
         args: Arguments to pass to the tool

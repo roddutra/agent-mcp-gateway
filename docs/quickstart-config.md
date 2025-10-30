@@ -73,13 +73,40 @@ Edit `.mcp-gateway-rules.json` (or `config/.mcp-gateway-rules.json`) to define a
           "brave-search": ["*"]
         }
       }
+    },
+    "default": {
+      "deny": {
+        "servers": ["*"]
+      }
     }
   },
   "defaults": {
-    "deny_on_missing_agent": true
+    "deny_on_missing_agent": false
   }
 }
 ```
+
+**Agent Identity Options:**
+
+The gateway supports flexible agent identity with a fallback chain:
+
+1. **Explicit agent_id in tool calls** (recommended for multi-agent setups)
+2. **Environment variable** (`GATEWAY_DEFAULT_AGENT`) for single-agent mode
+3. **"default" agent** in rules file (fallback when `deny_on_missing_agent` is false)
+
+**The `deny_on_missing_agent` Setting:**
+- **`true` (Strict Mode):** Rejects tool calls without `agent_id`, bypassing fallback chain - use in production multi-agent environments
+- **`false` (Fallback Mode):** Uses the fallback chain above - use in single-agent/development environments
+
+**Single-Agent Mode Example:**
+```bash
+export GATEWAY_DEFAULT_AGENT=researcher
+uv run python main.py
+# Now all tools work without passing agent_id explicitly
+```
+
+**Secure Default Agent:**
+The "default" agent above denies all servers, following the principle of least privilege. This ensures requests without explicit agent identity are rejected safely unless you've configured a specific default via environment variable.
 
 **Wildcard Patterns:**
 - `"*"` - All tools
@@ -246,6 +273,7 @@ All tests should pass:
 |----------|---------|-------------|
 | `GATEWAY_MCP_CONFIG` | `.mcp.json` (fallback: `./config/.mcp.json`) | Path to MCP servers config |
 | `GATEWAY_RULES` | `.mcp-gateway-rules.json` (fallback: `./config/.mcp-gateway-rules.json`) | Path to gateway rules config |
+| `GATEWAY_DEFAULT_AGENT` | *(none)* | Default agent when `agent_id` not provided (optional) |
 | `BRAVE_API_KEY` | *(required)* | API key for Brave Search |
 | `POSTGRES_URL` | *(required)* | PostgreSQL connection URL |
 

@@ -20,6 +20,7 @@ _mcp_config: dict | None = None
 _proxy_manager: ProxyManager | None = None
 _check_config_changes_fn: Any | None = None  # Fallback reload checker
 _get_reload_status_fn: Any | None = None  # Reload status getter for diagnostics
+_default_agent_id: str | None = None  # Default agent for fallback chain
 
 
 def initialize_gateway(
@@ -27,7 +28,8 @@ def initialize_gateway(
     mcp_config: dict,
     proxy_manager: ProxyManager | None = None,
     check_config_changes_fn: Any = None,
-    get_reload_status_fn: Any = None
+    get_reload_status_fn: Any = None,
+    default_agent_id: str | None = None
 ):
     """Initialize gateway with policy engine, MCP config, and proxy manager.
 
@@ -39,18 +41,29 @@ def initialize_gateway(
         proxy_manager: Optional ProxyManager instance (required for get_server_tools)
         check_config_changes_fn: Optional function to check for config changes (fallback mechanism)
         get_reload_status_fn: Optional function to get reload status for diagnostics
+        default_agent_id: Optional default agent ID from GATEWAY_DEFAULT_AGENT env var for fallback chain
     """
-    global _policy_engine, _mcp_config, _proxy_manager, _check_config_changes_fn, _get_reload_status_fn
+    global _policy_engine, _mcp_config, _proxy_manager, _check_config_changes_fn, _get_reload_status_fn, _default_agent_id
     _policy_engine = policy_engine
     _mcp_config = mcp_config
     _proxy_manager = proxy_manager
     _check_config_changes_fn = check_config_changes_fn
     _get_reload_status_fn = get_reload_status_fn
+    _default_agent_id = default_agent_id
+
+
+def get_default_agent_id() -> str | None:
+    """Get the default agent ID from gateway configuration.
+
+    Returns:
+        Default agent ID from GATEWAY_DEFAULT_AGENT env var, or None if not set
+    """
+    return _default_agent_id
 
 
 @gateway.tool
 async def list_servers(
-    agent_id: str,
+    agent_id: Optional[str] = None,
     include_metadata: bool = False
 ) -> list[dict]:
     """List all MCP servers available to the calling agent based on policy rules.
@@ -76,6 +89,10 @@ async def list_servers(
             {"name": "filesystem", "transport": "stdio"}
         ]
     """
+    # Defensive check (middleware should have resolved agent_id)
+    if agent_id is None:
+        raise ToolError("Internal error: agent_id not resolved by middleware")
+
     # Get configurations from module-level storage
     policy_engine = _policy_engine
     mcp_config = _mcp_config
@@ -193,8 +210,8 @@ def _estimate_tool_tokens(tool: Any) -> int:
 
 @gateway.tool
 async def get_server_tools(
-    agent_id: str,
-    server: str,
+    agent_id: Optional[str] = None,
+    server: str = "",
     names: Optional[str] = None,
     pattern: Optional[str] = None,
     max_schema_tokens: Optional[int] = None
@@ -248,6 +265,10 @@ async def get_server_tools(
             "tokens_used": null
         }
     """
+    # Defensive check (middleware should have resolved agent_id)
+    if agent_id is None:
+        raise ToolError("Internal error: agent_id not resolved by middleware")
+
     # Check for config changes (fallback mechanism for when file watching doesn't work)
     if _check_config_changes_fn:
         try:
@@ -378,10 +399,10 @@ async def get_server_tools(
 
 
 async def _execute_tool_impl(
-    agent_id: str,
-    server: str,
-    tool: str,
-    args: dict,
+    agent_id: Optional[str] = None,
+    server: str = "",
+    tool: str = "",
+    args: dict = {},
     timeout_ms: Optional[int] = None
 ) -> dict:
     """Execute a tool on a downstream MCP server with policy-based access control.
@@ -425,6 +446,10 @@ async def _execute_tool_impl(
             "isError": False
         }
     """
+    # Defensive check (middleware should have resolved agent_id)
+    if agent_id is None:
+        raise ToolError("Internal error: agent_id not resolved by middleware")
+
     # Get configurations from module-level storage
     policy_engine = _policy_engine
     proxy_manager = _proxy_manager
@@ -490,7 +515,7 @@ execute_tool = gateway.tool(_execute_tool_impl)
 
 
 @gateway.tool
-async def get_gateway_status(agent_id: str) -> dict:
+async def get_gateway_status(agent_id: Optional[str] = None) -> dict:
     """Get comprehensive gateway status and diagnostics.
 
     This tool provides visibility into gateway health and configuration state,
@@ -543,6 +568,10 @@ async def get_gateway_status(agent_id: str) -> dict:
             "message": "Gateway is operational. Check reload_status for hot reload health."
         }
     """
+    # Defensive check (middleware should have resolved agent_id)
+    if agent_id is None:
+        raise ToolError("Internal error: agent_id not resolved by middleware")
+
     # Get reload status if available
     reload_status = None
     if _get_reload_status_fn:

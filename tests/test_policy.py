@@ -1092,6 +1092,214 @@ class TestPolicyReload:
         assert engine.can_access_tool("agent1", "db", "drop_table") is False
 
 
+class TestDefaultAgent:
+    """Test cases for agent named 'default' - used in fallback chain."""
+
+    def test_default_agent_is_regular_agent(self):
+        """Test that 'default' is treated as a regular agent name."""
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api"]}
+                },
+                "researcher": {
+                    "allow": {"servers": ["brave-search"]}
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # 'default' should work like any other agent
+        assert engine.can_access_server("default", "api") is True
+        assert engine.can_access_server("default", "brave-search") is False
+        assert engine.can_access_server("researcher", "brave-search") is True
+        assert engine.can_access_server("researcher", "api") is False
+
+    def test_default_agent_with_tool_permissions(self):
+        """Test that policy evaluation works with agent_id='default'."""
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {
+                        "servers": ["db"],
+                        "tools": {"db": ["query", "read_*"]}
+                    },
+                    "deny": {
+                        "tools": {"db": ["drop_*"]}
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # Test server access
+        assert engine.can_access_server("default", "db") is True
+
+        # Test explicit tool permissions
+        assert engine.can_access_tool("default", "db", "query") is True
+
+        # Test wildcard allow patterns
+        assert engine.can_access_tool("default", "db", "read_data") is True
+        assert engine.can_access_tool("default", "db", "read_users") is True
+
+        # Test wildcard deny patterns
+        assert engine.can_access_tool("default", "db", "drop_table") is False
+
+        # Test tool not in allow list
+        assert engine.can_access_tool("default", "db", "write") is False
+
+    def test_default_agent_with_deny_before_allow(self):
+        """Test that deny-before-allow precedence works for 'default' agent."""
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {
+                        "servers": ["db"],
+                        "tools": {"db": ["*"]}  # Allow all
+                    },
+                    "deny": {
+                        "tools": {"db": ["dangerous_op"]}  # But deny this one
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # Should allow most tools
+        assert engine.can_access_tool("default", "db", "query") is True
+        assert engine.can_access_tool("default", "db", "read") is True
+
+        # Should deny dangerous_op (explicit deny overrides wildcard allow)
+        assert engine.can_access_tool("default", "db", "dangerous_op") is False
+
+    def test_get_allowed_servers_for_default_agent(self):
+        """Test helper method returns correct servers for 'default' agent."""
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api", "db", "cache"]}
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+        servers = engine.get_allowed_servers("default")
+
+        assert set(servers) == {"api", "db", "cache"}
+
+    def test_get_allowed_tools_for_default_agent(self):
+        """Test helper method returns correct tools for 'default' agent."""
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {
+                        "servers": ["api"],
+                        "tools": {"api": ["get_*", "list_*"]}
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+        tools = engine.get_allowed_tools("default", "api")
+
+        assert isinstance(tools, list)
+        assert "get_*" in tools
+        assert "list_*" in tools
+
+    def test_get_policy_decision_reason_for_default_agent(self):
+        """Test policy reason works correctly for 'default' agent."""
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {
+                        "servers": ["api"],
+                        "tools": {"api": ["query"]}
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # Test server access reason
+        reason = engine.get_policy_decision_reason("default", "api")
+        assert "allowed" in reason.lower()
+        assert "api" in reason
+
+        # Test tool access reason
+        reason = engine.get_policy_decision_reason("default", "api", "query")
+        assert "allowed" in reason.lower()
+        assert "query" in reason
+
+    def test_default_agent_coexists_with_other_agents(self):
+        """Test that 'default' agent can coexist with other agents without conflicts."""
+        rules = {
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api"]}
+                },
+                "researcher": {
+                    "allow": {"servers": ["brave-search"]}
+                },
+                "backend": {
+                    "allow": {"servers": ["postgres"]}
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # Each agent should have independent permissions
+        assert engine.can_access_server("default", "api") is True
+        assert engine.can_access_server("default", "brave-search") is False
+        assert engine.can_access_server("default", "postgres") is False
+
+        assert engine.can_access_server("researcher", "api") is False
+        assert engine.can_access_server("researcher", "brave-search") is True
+
+        assert engine.can_access_server("backend", "postgres") is True
+        assert engine.can_access_server("backend", "api") is False
+
+    def test_reload_with_default_agent(self):
+        """Test that policy reload works correctly with 'default' agent."""
+        initial_rules = {
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api"]}
+                }
+            }
+        }
+
+        engine = PolicyEngine(initial_rules)
+
+        # Verify initial state
+        assert engine.can_access_server("default", "api") is True
+        assert engine.can_access_server("default", "db") is False
+
+        # Reload with updated permissions for 'default'
+        new_rules = {
+            "agents": {
+                "default": {
+                    "allow": {"servers": ["api", "db"]}
+                }
+            }
+        }
+
+        success, error = engine.reload(new_rules)
+
+        # Verify reload succeeded
+        assert success is True
+        assert error is None
+
+        # Verify new rules are active
+        assert engine.can_access_server("default", "api") is True
+        assert engine.can_access_server("default", "db") is True
+
+
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 

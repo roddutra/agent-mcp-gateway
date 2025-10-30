@@ -39,6 +39,7 @@ class AgentAccessControl(Middleware):
         This hook:
         - Extracts agent_id from tool arguments
         - Validates agent identity based on default policy
+        - Applies fallback chain if agent_id is missing (when deny_on_missing_agent: false)
         - Stores agent in context state for downstream tools
         - Keeps agent_id in arguments (gateway tools need it)
         - Allows gateway tools to pass through (they do own auth)
@@ -51,7 +52,8 @@ class AgentAccessControl(Middleware):
             Result from downstream handler
 
         Raises:
-            ToolError: If agent_id is missing and default policy denies access
+            ToolError: If agent_id is missing and default policy denies access,
+                      or if fallback chain fails to find a valid agent
         """
         # Extract the tool call message
         tool_call = context.message
@@ -69,8 +71,15 @@ class AgentAccessControl(Middleware):
                     "Missing required parameter 'agent_id'. "
                     "All tool calls must include agent identity."
                 )
-            # If default policy is permissive, continue without agent_id
-            # (though this is unusual - most deployments should deny)
+
+            # Apply fallback chain (deny_on_missing_agent: false)
+            # Priority: 1. GATEWAY_DEFAULT_AGENT env var, 2. "default" agent in rules
+            agent_id = self._resolve_fallback_agent(context)
+
+            # Inject the resolved agent_id back into arguments for gateway tools
+            if agent_id:
+                arguments["agent_id"] = agent_id
+                tool_call.arguments = arguments
 
         # Store agent in context state for downstream tools
         # This allows gateway tools to access the current agent
@@ -87,6 +96,55 @@ class AgentAccessControl(Middleware):
         # allowed through - they perform their own permission checks using
         # the agent_id parameter
         return await call_next(context)
+
+    def _resolve_fallback_agent(self, context: MiddlewareContext) -> str:
+        """Resolve fallback agent when agent_id is missing and deny_on_missing_agent: false.
+
+        Fallback priority order:
+        1. GATEWAY_DEFAULT_AGENT environment variable (read from gateway module)
+        2. Agent named "default" in gateway rules configuration
+        3. Raise helpful error if neither is configured
+
+        Args:
+            context: Middleware context to access gateway state
+
+        Returns:
+            Resolved agent_id from fallback chain
+
+        Raises:
+            ToolError: If no fallback agent is configured or if fallback agent doesn't exist in rules
+        """
+        # Import here to avoid circular dependency
+        from .gateway import get_default_agent_id
+
+        # Try to get default agent from environment variable (stored in gateway module)
+        default_agent_from_env = get_default_agent_id()
+
+        # Priority 1: GATEWAY_DEFAULT_AGENT environment variable
+        if default_agent_from_env:
+            # Validate that this agent exists in policy rules
+            if default_agent_from_env in self.policy_engine.agents:
+                return default_agent_from_env
+            else:
+                raise ToolError(
+                    f"Missing 'agent_id' parameter and GATEWAY_DEFAULT_AGENT ('{default_agent_from_env}') "
+                    f"is not defined in .mcp-gateway-rules.json. Either:\n"
+                    f"1. Provide 'agent_id' in your tool calls, OR\n"
+                    f"2. Define agent '{default_agent_from_env}' in your gateway rules config, OR\n"
+                    f"3. Add a 'default' agent to your gateway rules config"
+                )
+
+        # Priority 2: Agent named "default" in gateway rules
+        if "default" in self.policy_engine.agents:
+            return "default"
+
+        # Priority 3: No fallback configured - provide helpful error
+        raise ToolError(
+            "Missing 'agent_id' parameter and no fallback agent configured. Either:\n"
+            "1. Provide 'agent_id' in your tool calls, OR\n"
+            "2. Set GATEWAY_DEFAULT_AGENT environment variable and define that agent in your rules, OR\n"
+            "3. Add a 'default' agent to your .mcp-gateway-rules.json config"
+        )
 
     async def on_list_tools(self, context: MiddlewareContext, call_next):
         """Pass through list_tools requests without filtering.

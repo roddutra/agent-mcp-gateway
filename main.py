@@ -318,6 +318,9 @@ def main():
         _gateway_rules_path = get_gateway_rules_path()
         audit_log_path = os.environ.get("GATEWAY_AUDIT_LOG", "./logs/audit.jsonl")
 
+        # Get default agent ID for fallback chain (optional)
+        default_agent_id = os.getenv("GATEWAY_DEFAULT_AGENT")
+
         # Initialize modification times for fallback reload checking
         if os.path.exists(_mcp_config_path):
             _last_mcp_config_mtime = os.path.getmtime(_mcp_config_path)
@@ -327,6 +330,8 @@ def main():
         print(f"Loading MCP server configuration from: {_mcp_config_path}", file=sys.stderr)
         print(f"Loading gateway rules from: {_gateway_rules_path}", file=sys.stderr)
         print(f"Audit log will be written to: {audit_log_path}", file=sys.stderr)
+        if default_agent_id:
+            print(f"Default agent for fallback chain: {default_agent_id}", file=sys.stderr)
 
         # Load configurations
         mcp_config = load_mcp_config(_mcp_config_path)
@@ -373,7 +378,14 @@ def main():
         print(f"  - Access control middleware registered", file=sys.stderr)
 
         # Initialize gateway with all components
-        initialize_gateway(_policy_engine, mcp_config, _proxy_manager, check_config_changes, get_reload_status)
+        initialize_gateway(
+            _policy_engine,
+            mcp_config,
+            _proxy_manager,
+            check_config_changes,
+            get_reload_status,
+            default_agent_id
+        )
 
         # Initialize ConfigWatcher for hot reloading
         logger.debug("=== ConfigWatcher Initialization Starting ===")

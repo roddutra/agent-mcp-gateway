@@ -42,14 +42,15 @@ The Agent MCP Gateway acts as a single MCP server that proxies to multiple downs
 The gateway exposes only these tools to agents (total ~400 tokens vs 5,000-50,000+ for direct loading):
 
 ```python
-# All tools require agent_id parameter
+# All tools accept optional agent_id parameter with configurable fallback
 
-list_servers(agent_id: str, include_metadata: bool = False) -> List[Server]
+list_servers(agent_id: Optional[str] = None, include_metadata: bool = False) -> List[Server]
 # Returns MCP servers this agent can access based on policy rules
 # Enables discovery without loading all tool definitions
+# agent_id is optional - uses fallback chain if not provided
 
 get_server_tools(
-    agent_id: str,
+    agent_id: Optional[str] = None,
     server: str,
     names: Optional[List[str]] = None,        # Specific tool names
     pattern: Optional[str] = None,             # Wildcards: "get_*"
@@ -57,17 +58,27 @@ get_server_tools(
 ) -> List[Tool]
 # Returns tool definitions from a server, filtered by agent permissions
 # Loaded on-demand, not at startup
+# agent_id is optional - uses fallback chain if not provided
 
 execute_tool(
-    agent_id: str,
-    server: str, 
+    agent_id: Optional[str] = None,
+    server: str,
     tool: str,
     args: dict,
     timeout_ms: Optional[int] = None
 ) -> Any
 # Proxies tool execution to downstream server
 # Handles all protocol translation and response forwarding
+# agent_id is optional - uses fallback chain if not provided
 ```
+
+**Agent Identity Fallback Chain:**
+When `agent_id` is not provided:
+1. Use `GATEWAY_DEFAULT_AGENT` environment variable (highest priority)
+2. Use agent named "default" in gateway rules (if `deny_on_missing_agent` is false)
+3. Return error if neither configured
+
+**Security:** Follows principle of least privilege - no implicit "allow all" access.
 
 This minimal interface replaces loading all downstream tools upfront, allowing agents to:
 1. Discover available servers (`list_servers`)
@@ -127,13 +138,20 @@ This minimal interface replaces loading all downstream tools upfront, allowing a
       "deny": {
         "tools": {"postgres": ["drop_*"]}
       }
+    },
+    "default": {
+      "deny": {
+        "servers": ["*"]
+      }
     }
   },
   "defaults": {
-    "deny_on_missing_agent": true
+    "deny_on_missing_agent": false
   }
 }
 ```
+
+**Note:** The "default" agent provides secure fallback permissions when `agent_id` is not provided.
 
 ### Policy Rules
 1. Explicit deny > allow
@@ -164,7 +182,7 @@ Agent → Gateway (3 tools) → Policy Engine → MCP Servers (100s of tools)
 
 ### Core (P0)
 - [x] Expose only gateway tools at startup
-- [x] Enforce `agent_id` on all calls
+- [x] Accept optional `agent_id` with secure fallback chain
 - [x] Apply deny-before-allow policies
 - [x] Proxy transparently to downstream
 - [x] Isolate sessions per agent
@@ -189,7 +207,7 @@ Agent → Gateway (3 tools) → Policy Engine → MCP Servers (100s of tools)
 }
 ```
 
-Codes: `DENIED_BY_POLICY`, `SERVER_UNAVAILABLE`, `TOOL_NOT_FOUND`, `INVALID_AGENT_ID`, `TIMEOUT`
+Codes: `DENIED_BY_POLICY`, `SERVER_UNAVAILABLE`, `TOOL_NOT_FOUND`, `INVALID_AGENT_ID`, `FALLBACK_AGENT_NOT_IN_RULES`, `NO_FALLBACK_CONFIGURED`, `TIMEOUT`
 
 ---
 
@@ -255,10 +273,17 @@ result = execute_tool("researcher", "brave-search", "search", {"query": "..."})
 ```bash
 GATEWAY_MCP_CONFIG=./.mcp.json                      # MCP server definitions (default: .mcp.json, fallback: ./config/.mcp.json)
 GATEWAY_RULES=./.mcp-gateway-rules.json             # Gateway rules config (default: .mcp-gateway-rules.json, fallback: ./config/.mcp-gateway-rules.json)
-GATEWAY_DEFAULT_AGENT=developer                     # Single-agent mode
+GATEWAY_DEFAULT_AGENT=developer                     # Default agent when agent_id not provided (optional, IMPLEMENTED)
 GATEWAY_TRANSPORT=stdio                             # stdio|http
 GATEWAY_INIT_STRATEGY=eager                         # eager|lazy
 ```
+
+**Agent Identity Behavior:**
+- `GATEWAY_DEFAULT_AGENT` set: Uses specified agent when `agent_id` missing
+- `deny_on_missing_agent: false` (Fallback Mode): Uses fallback chain (env var → "default" agent → error)
+- `deny_on_missing_agent: true` (Strict Mode): Immediately rejects requests without `agent_id`, bypassing fallback chain entirely
+
+The `deny_on_missing_agent` setting provides flexibility: use `false` in single-agent/development environments for convenience, or `true` in production multi-agent environments for strict access control.
 
 ---
 
@@ -278,11 +303,19 @@ GATEWAY_INIT_STRATEGY=eager                         # eager|lazy
 ### Single Developer
 ```json
 {
-  "gateway": {"default_agent": "dev"},
   "agents": {
-    "dev": {"allow": {"servers": ["*"], "tools": {"*": ["*"]}}}
+    "developer": {"allow": {"servers": ["*"], "tools": {"*": ["*"]}}}
+  },
+  "defaults": {
+    "deny_on_missing_agent": false
   }
 }
+```
+
+**Usage:**
+```bash
+export GATEWAY_DEFAULT_AGENT=developer
+uv run python main.py
 ```
 
 ### Team Setup
@@ -355,10 +388,14 @@ def evaluate_policy(agent_id, server, tool):
 5. Default policy
 
 # Agent ID extraction (MUST BE EXACT)
-if "agent_id" not in params:
-    if config.deny_on_missing_agent:
-        raise InvalidAgentError("agent_id required")
-    agent_id = config.fallback_agent or "default"
+agent_id = params.get("agent_id")
+if not agent_id:
+    # Apply fallback chain
+    agent_id = os.getenv("GATEWAY_DEFAULT_AGENT")
+    if not agent_id:
+        if config.deny_on_missing_agent:
+            raise InvalidAgentError("agent_id required and no fallback configured")
+        agent_id = "default"  # Use "default" agent from rules
 ```
 
 ---

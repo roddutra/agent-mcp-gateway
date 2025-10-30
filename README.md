@@ -191,13 +191,20 @@ Defines per-agent access policies using deny-before-allow precedence:
           "*": ["*"]
         }
       }
+    },
+    "default": {
+      "deny": {
+        "servers": ["*"]
+      }
     }
   },
   "defaults": {
-    "deny_on_missing_agent": true
+    "deny_on_missing_agent": false
   }
 }
 ```
+
+**Note on "default" Agent:** The special agent named "default" is used as a fallback when `agent_id` is not provided and `deny_on_missing_agent` is `false`. In this example, the default agent denies all servers, following the principle of least privilege. You can also use `GATEWAY_DEFAULT_AGENT` environment variable to specify a different default agent.
 
 **Policy Precedence Order:**
 1. Explicit deny rules (highest priority)
@@ -258,6 +265,7 @@ uv run python main.py
 - `GATEWAY_MCP_CONFIG` - Path to MCP servers config (default: checks `.mcp.json` in current directory, then `./config/.mcp.json`)
 - `GATEWAY_RULES` - Path to gateway rules config (default: checks `.mcp-gateway-rules.json` in current directory, then `./config/.mcp-gateway-rules.json`)
 - `GATEWAY_AUDIT_LOG` - Path to audit log file (default: `./logs/audit.jsonl`)
+- `GATEWAY_DEFAULT_AGENT` - Default agent identity when `agent_id` is not provided (optional, see [Agent Identity Fallback](#agent-identity-fallback))
 
 **Note on Configuration Files:** Both `.mcp.json` and `.mcp-gateway-rules.json` follow standard MCP naming conventions and are designed to be checked into version control for team sharing. This enables consistent agent access policies across your entire development team.
 
@@ -288,14 +296,14 @@ Gateway is ready. Running with stdio transport...
 
 ## Gateway Tools
 
-The gateway exposes exactly 3 tools to agents. All tools require the `agent_id` parameter for access control.
+The gateway exposes exactly 3 tools to agents. All tools accept an optional `agent_id` parameter for access control. When `agent_id` is not provided, the gateway uses a fallback chain to determine agent identity.
 
 ### 1. `list_servers`
 
 Lists MCP servers available to the calling agent based on policy rules.
 
 **Parameters:**
-- `agent_id` (string, required) - Identifier of the agent making the request
+- `agent_id` (string, optional) - Identifier of the agent making the request (see [Agent Identity Fallback](#agent-identity-fallback))
 - `include_metadata` (boolean, optional) - Include extended server metadata (default: false)
 
 **Returns:**
@@ -324,7 +332,7 @@ result = await client.call_tool("list_servers", {
 Retrieves tool definitions from a specific MCP server, filtered by agent permissions.
 
 **Parameters:**
-- `agent_id` (string, required) - Identifier of the agent
+- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Fallback](#agent-identity-fallback))
 - `server` (string, required) - Name of the downstream MCP server
 - `names` (string, optional) - Comma-separated list of tool names (e.g., `"tool1,tool2,tool3"`) or single tool name
 - `pattern` (string, optional) - Wildcard pattern for tool names (e.g., `"get_*"`)
@@ -392,7 +400,7 @@ Executes a tool on a downstream MCP server with transparent result forwarding.
 Returns comprehensive gateway health and diagnostics information.
 
 **Parameters:**
-- `agent_id` (string, required) - Identifier of the agent
+- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Fallback](#agent-identity-fallback))
 - `server` (string, required) - Name of the downstream MCP server
 - `tool` (string, required) - Name of the tool to execute
 - `args` (object, required) - Arguments to pass to the tool
@@ -436,7 +444,7 @@ result = await client.call_tool("execute_tool", {
 ```
 
 **Parameters:**
-- `agent_id` (string, required) - Identifier of the agent
+- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Fallback](#agent-identity-fallback))
 
 **Returns:**
 ```json
@@ -504,6 +512,60 @@ All tools return structured errors with clear messages:
 - `TOOL_NOT_FOUND` - Requested tool doesn't exist
 - `TIMEOUT` - Operation exceeded time limit
 - `INVALID_AGENT_ID` - Missing or unknown agent identifier
+- `FALLBACK_AGENT_NOT_IN_RULES` - Configured fallback agent not found in gateway rules
+- `NO_FALLBACK_CONFIGURED` - No agent_id provided and no fallback agent configured
+
+### Agent Identity Fallback
+
+The `agent_id` parameter is optional in all gateway tool calls. When not provided, the gateway uses the following fallback chain to determine agent identity:
+
+1. **Environment Variable** (`GATEWAY_DEFAULT_AGENT`) - Highest priority
+2. **"default" Agent in Rules** - Agent named "default" in `.mcp-gateway-rules.json`
+3. **Error** - If neither is configured and `deny_on_missing_agent` is true
+
+**Example with Environment Variable:**
+```bash
+export GATEWAY_DEFAULT_AGENT=developer
+uv run python main.py
+```
+
+**Example with "default" Agent:**
+```json
+{
+  "agents": {
+    "default": {
+      "deny": {
+        "servers": ["*"]
+      }
+    }
+  },
+  "defaults": {
+    "deny_on_missing_agent": false
+  }
+}
+```
+
+#### The `deny_on_missing_agent` Setting
+
+This configuration setting controls whether the gateway uses the fallback chain when `agent_id` is not provided in tool calls:
+
+**When `true` (Strict Mode):**
+- The gateway **immediately rejects** any tool call without an `agent_id` parameter
+- The fallback chain is **bypassed entirely**, even if `GATEWAY_DEFAULT_AGENT` or a "default" agent is configured
+- This effectively makes `agent_id` a **required parameter**
+- Use this mode in production multi-agent environments where explicit agent identification is mandatory
+
+**When `false` (Fallback Mode):**
+- The gateway **uses the fallback chain** to resolve agent identity (environment variable → "default" agent → error)
+- Access is **never implicitly granted** - the gateway falls back to the explicitly configured agent's permissions
+- If no fallback is configured, requests are still rejected with a helpful error message
+- Use this mode in single-agent deployments or development environments where convenience is prioritized
+
+**Flexibility:** This setting allows you to configure different behaviors for different projects. For example, you might use `deny_on_missing_agent: false` in development for convenience, but set it to `true` in production for strict access control.
+
+**Important:** The fallback mechanism follows the **principle of least privilege**. Even when `deny_on_missing_agent` is `false`, access is never implicitly granted to all resources. Instead, the gateway falls back to the explicitly configured agent's permissions.
+
+**Special Agent Name:** The name "default" is reserved and automatically used as the final fallback when `deny_on_missing_agent` is `false` and no `GATEWAY_DEFAULT_AGENT` is set.
 
 ---
 

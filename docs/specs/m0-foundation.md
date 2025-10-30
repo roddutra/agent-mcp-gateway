@@ -169,7 +169,7 @@ class PolicyEngine:
 
 - [x] Implement `list_servers` tool
   - [x] Add `@gateway.tool` decorator
-  - [x] Require `agent_id: str` parameter
+  - [x] Accept optional `agent_id: Optional[str]` parameter with fallback chain
   - [x] Extract allowed servers from PolicyEngine
   - [x] Filter mcp_config servers to only those agent can access
   - [x] Return list of server info dicts with: name, transport type
@@ -183,12 +183,12 @@ from fastmcp import FastMCP, Context
 gateway = FastMCP(name="Agent MCP Gateway")
 
 @gateway.tool
-async def list_servers(agent_id: str, ctx: Context, include_metadata: bool = False) -> list[dict]:
+async def list_servers(agent_id: Optional[str] = None, ctx: Context, include_metadata: bool = False) -> list[dict]:
     """
     List all MCP servers available to the calling agent based on policy rules.
 
     Args:
-        agent_id: Identifier of the agent making the request
+        agent_id: Identifier of the agent making the request (optional, uses fallback chain)
         include_metadata: Whether to include extended server metadata
 
     Returns:

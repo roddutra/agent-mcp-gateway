@@ -1,5 +1,10 @@
 {
   "agents": {
+    "default": {
+      "deny": {
+        "servers": ["*"]
+      }
+    },
     "researcher": {
       "allow": {
         "servers": ["brave-search"],
@@ -35,6 +40,6 @@
     }
   },
   "defaults": {
-    "deny_on_missing_agent": true
+    "deny_on_missing_agent": false
   }
 }

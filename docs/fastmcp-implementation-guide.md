@@ -188,33 +188,33 @@ class AgentAccessMiddleware(Middleware):
 
 ### 5. Extracting Agent Identity from Tool Calls
 
-Agents calling the gateway should provide an `agent_name` parameter with their tool calls. FastMCP middleware can extract this from the tool arguments.
+Agents calling the gateway should provide an `agent_id` parameter with their tool calls. FastMCP middleware can extract this from the tool arguments.
 
 **Implementation:**
 
 ```python
 async def on_call_tool(self, context: MiddlewareContext, call_next):
-    """Extract agent_name from tool arguments"""
+    """Extract agent_id from tool arguments"""
     
     # Get the tool call message
     tool_call = context.message
     tool_name = tool_call.name  # e.g., "github_create_issue"
     arguments = tool_call.arguments or {}
     
-    # Extract agent_name from arguments
-    agent_name = arguments.get("agent_name")
+    # Extract agent_id from arguments
+    agent_id = arguments.get("agent_id")
     
-    if not agent_name:
+    if not agent_id:
         # Fallback to session_id or default agent
-        agent_name = context.session_id or "default_agent"
+        agent_id = context.session_id or "default_agent"
     
-    # Remove agent_name from arguments before forwarding
+    # Remove agent_id from arguments before forwarding
     # to downstream server (they don't need to know about it)
     clean_arguments = {k: v for k, v in arguments.items() 
-                      if k != "agent_name"}
+                      if k != "agent_id"}
     
-    # Store agent_name in context for other middleware/tools
-    context.set_state("current_agent", agent_name)
+    # Store agent_id in context for other middleware/tools
+    context.set_state("current_agent", agent_id)
     
     # Proceed with cleaned arguments
     return await call_next(context)
@@ -223,13 +223,13 @@ async def on_call_tool(self, context: MiddlewareContext, call_next):
 **Agent tool call format:**
 
 ```python
-# When agent calls a tool, it includes agent_name
+# When agent calls a tool, it includes agent_id
 {
     "method": "tools/call",
     "params": {
         "name": "github_create_issue",
         "arguments": {
-            "agent_name": "frontend_agent",  # <-- Agent identification
+            "agent_id": "frontend_agent",  # <-- Agent identification
             "repository": "myorg/myrepo",
             "title": "Bug report",
             "body": "Description..."
@@ -318,11 +318,11 @@ class AgentAccessControl(Middleware):
         parts = tool_name.split("_", 1)
         return parts[0] if len(parts) > 1 else ""
     
-    def _is_tool_allowed(self, agent_name: str, tool_name: str) -> bool:
+    def _is_tool_allowed(self, agent_id: str, tool_name: str) -> bool:
         """Check if agent has permission to call this tool"""
         
         # Get agent rules or deny by default
-        agent_rules = self.access_rules.get(agent_name)
+        agent_rules = self.access_rules.get(agent_id)
         if not agent_rules:
             return False
         
@@ -363,24 +363,24 @@ class AgentAccessControl(Middleware):
         arguments = tool_call.arguments or {}
         
         # Extract agent identity
-        agent_name = arguments.get("agent_name") or context.session_id
+        agent_id = arguments.get("agent_id") or context.session_id
         
-        if not agent_name:
+        if not agent_id:
             raise ToolError("No agent identity provided")
         
         # Check if tool is allowed for this agent
-        if not self._is_tool_allowed(agent_name, tool_call.name):
+        if not self._is_tool_allowed(agent_id, tool_call.name):
             raise ToolError(
-                f"Agent '{agent_name}' is not authorized to call tool "
+                f"Agent '{agent_id}' is not authorized to call tool "
                 f"'{tool_call.name}'"
             )
         
         # Store agent name in context state
-        context.set_state("current_agent", agent_name)
+        context.set_state("current_agent", agent_id)
         
-        # Remove agent_name from arguments before forwarding
+        # Remove agent_id from arguments before forwarding
         clean_arguments = {k: v for k, v in arguments.items() 
-                          if k != "agent_name"}
+                          if k != "agent_id"}
         
         # Update message with cleaned arguments
         tool_call.arguments = clean_arguments
@@ -395,16 +395,16 @@ class AgentAccessControl(Middleware):
         response = await call_next(context)
         
         # Extract agent identity from stored state or session
-        agent_name = context.get_state("current_agent") or context.session_id
+        agent_id = context.get_state("current_agent") or context.session_id
         
-        if not agent_name or agent_name not in self.access_rules:
+        if not agent_id or agent_id not in self.access_rules:
             # Return empty list for unknown agents
             return []
         
         # Filter tools based on agent permissions
         filtered_tools = [
             tool for tool in response.tools
-            if self._is_tool_allowed(agent_name, tool.name)
+            if self._is_tool_allowed(agent_id, tool.name)
         ]
         
         # Return filtered response
@@ -421,19 +421,19 @@ from fastmcp import FastMCP, Context
 from mcp.types import Tool
 
 @gateway.tool
-async def list_servers(agent_name: str, ctx: Context) -> list[dict]:
+async def list_servers(agent_id: Optional[str] = None, ctx: Context) -> list[dict]:
     """
     List all MCP servers available to the calling agent
-    
+
     Args:
-        agent_name: Identifier of the agent making the request
-    
+        agent_id: Identifier of the agent making the request (optional, uses fallback chain)
+
     Returns:
         List of server information dicts
     """
     # Get agent's access rules
     access_rules = ctx.get_state("access_rules") or {}
-    agent_rules = access_rules.get(agent_name, {})
+    agent_rules = access_rules.get(agent_id, {})
     allowed_servers = agent_rules.get("servers", [])
     
     # Get full server config
@@ -457,7 +457,7 @@ async def list_servers(agent_name: str, ctx: Context) -> list[dict]:
 @gateway.tool
 async def get_server_tools(
     server_name: str,
-    agent_name: str,
+    agent_id: Optional[str] = None,
     ctx: Context
 ) -> list[dict]:
     """
@@ -465,14 +465,14 @@ async def get_server_tools(
     
     Args:
         server_name: Name of the downstream MCP server
-        agent_name: Identifier of the agent making the request
+        agent_id: Identifier of the agent making the request
     
     Returns:
         List of tool information dicts
     """
     # Verify agent has access to this server
     access_rules = ctx.get_state("access_rules") or {}
-    agent_rules = access_rules.get(agent_name, {})
+    agent_rules = access_rules.get(agent_id, {})
     allowed_servers = agent_rules.get("servers", [])
     
     if server_name not in allowed_servers:
@@ -618,7 +618,7 @@ gateway.add_middleware(AgentAccessControl(access_rules))
 
 # Add discovery tools
 @gateway.tool
-async def list_servers(agent_name: str, ctx: Context) -> list[dict]:
+async def list_servers(agent_id: str, ctx: Context) -> list[dict]:
     """List servers available to agent"""
     # Implementation from section 8
     pass
@@ -626,7 +626,7 @@ async def list_servers(agent_name: str, ctx: Context) -> list[dict]:
 @gateway.tool
 async def get_server_tools(
     server_name: str,
-    agent_name: str,
+    agent_id: str,
     ctx: Context
 ) -> list[dict]:
     """Get tools from specific server"""
