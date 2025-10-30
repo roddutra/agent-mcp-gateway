@@ -137,6 +137,32 @@ GATEWAY_RULES=.mcp-gateway-rules.json           # Default: .mcp-gateway-rules.js
 GATEWAY_DEFAULT_AGENT=developer                 # Default agent when agent_id not provided
 ```
 
+## Security: Rules File Location
+
+The location of your gateway rules file has important security implications:
+
+### Context Optimization Only
+If you use the gateway only for context window optimization (not access control), in-project storage is fine:
+```bash
+.mcp-gateway-rules.json  # In project directory
+```
+
+### Access Control and Security
+If you use gateway rules for actual access control, store them **outside the project directory**:
+
+```bash
+# Secure: Store rules outside project
+export GATEWAY_RULES=~/.claude/mcp-gateway-rules.json
+```
+
+**Why this matters:**
+- Coding agents can read files in the project directory
+- Agents can inspect permission structures and identify privileged agent names
+- Agents might attempt to modify rules to grant themselves more access
+- External storage prevents these security risks
+
+**Recommendation:** For production deployments or security-critical access control, always use an external rules file location.
+
 ## See Also
 
 - `docs/quickstart-config.md` - Quick start guide for configuration

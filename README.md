@@ -267,7 +267,9 @@ uv run python main.py
 - `GATEWAY_AUDIT_LOG` - Path to audit log file (default: `./logs/audit.jsonl`)
 - `GATEWAY_DEFAULT_AGENT` - Default agent identity when `agent_id` is not provided (optional, see [Agent Identity Fallback](#agent-identity-fallback))
 
-**Note on Configuration Files:** Both `.mcp.json` and `.mcp-gateway-rules.json` follow standard MCP naming conventions and are designed to be checked into version control for team sharing. This enables consistent agent access policies across your entire development team.
+**Note on Configuration Files:**
+- `.mcp.json` follows standard MCP naming conventions and can be checked into version control for team sharing
+- `.mcp-gateway-rules.json` location depends on your security requirements (see [Security Considerations](#security-considerations) below)
 
 ### Startup Output
 
@@ -566,6 +568,65 @@ This configuration setting controls whether the gateway uses the fallback chain 
 **Important:** The fallback mechanism follows the **principle of least privilege**. Even when `deny_on_missing_agent` is `false`, access is never implicitly granted to all resources. Instead, the gateway falls back to the explicitly configured agent's permissions.
 
 **Special Agent Name:** The name "default" is reserved and automatically used as the final fallback when `deny_on_missing_agent` is `false` and no `GATEWAY_DEFAULT_AGENT` is set.
+
+---
+
+## Security Considerations
+
+### Rules File Location for Access Control
+
+The security posture of your gateway configuration depends on how you use it:
+
+#### Context Optimization Only
+If you use the gateway **only for context window optimization** (reducing token usage by loading tools on-demand) and all agents should have similar access, the rules file can safely reside in your project directory:
+```bash
+# In project directory - visible to coding agents
+.mcp-gateway-rules.json
+```
+
+#### Access Control and Security
+If you use the gateway **for actual access control** (restricting which agents can access which servers/tools), storing rules in the project directory creates security risks:
+
+**Security Risks:**
+- Coding agents (like Claude Code) can **read the rules file** and understand the permission structure
+- Agents can **identify other agent identities** with higher privileges and attempt impersonation
+- Agents might **attempt to modify the rules file** to grant themselves additional permissions
+- The permission structure becomes visible to all agents working with the code
+
+**Secure Configuration:**
+Store the rules file **outside the project directory** and reference it via environment variable:
+
+```bash
+# Store rules outside project - not visible to coding agents
+export GATEWAY_RULES=~/.claude/mcp-gateway-rules.json
+
+# Or in a system-wide configuration directory
+export GATEWAY_RULES=/etc/mcp-gateway/rules.json
+```
+
+**Benefits of External Rules Location:**
+- Rules file is **not accessible** to coding agents working in the project
+- Agents **cannot inspect** permission structures or identify privileged agent names
+- Agents **cannot modify** access control rules
+- Reduces attack surface for privilege escalation attempts
+- Separates security policy from project code
+
+**Example Secure Setup:**
+```bash
+# 1. Create rules directory outside project
+mkdir -p ~/.claude
+
+# 2. Move rules file to secure location
+cp .mcp-gateway-rules.json ~/.claude/mcp-gateway-rules.json
+
+# 3. Set environment variable
+export GATEWAY_RULES=~/.claude/mcp-gateway-rules.json
+
+# 4. Start gateway
+uv run python main.py
+```
+
+**Recommendation:** If your gateway rules are used for security-critical access control, always store them outside the project directory. If they're only used for context optimization convenience, in-project storage is acceptable.
 
 ---
 

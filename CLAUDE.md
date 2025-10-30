@@ -269,6 +269,13 @@ When `agent_id` is not provided in tool calls:
 
 **Security Note:** The fallback mechanism follows the principle of least privilege. When `deny_on_missing_agent` is `false`, it uses the "default" agent's explicit permissions - never grants implicit "allow all" access.
 
+**Rules File Security:**
+When gateway rules are used for actual access control (not just context optimization), store the rules file outside the project directory to prevent coding agents from reading or modifying permissions:
+```bash
+export GATEWAY_RULES=~/.claude/mcp-gateway-rules.json
+```
+This prevents agents from inspecting permission structures, identifying privileged agent names, or attempting to modify access control rules. See README.md Security Considerations section for detailed guidance.
+
 ## Error Codes
 
 - `DENIED_BY_POLICY` - Agent lacks permission for requested operation
