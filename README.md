@@ -85,9 +85,7 @@ cp config/.mcp-gateway-rules.json.example .mcp-gateway-rules.json
 **Claude Code CLI:**
 ```bash
 claude mcp add agent-mcp-gateway \
-  --command "uv" \
-  --args "run" "python" "/path/to/agent-mcp-gateway/main.py" \
-  --directory "/path/to/agent-mcp-gateway"
+  uv run --directory /path/to/agent-mcp-gateway python main.py
 ```
 
 **Manual MCP Client Configuration** (Claude Desktop, etc.):
@@ -96,8 +94,7 @@ claude mcp add agent-mcp-gateway \
   "mcpServers": {
     "agent-mcp-gateway": {
       "command": "uv",
-      "args": ["run", "python", "/path/to/agent-mcp-gateway/main.py"],
-      "cwd": "/path/to/agent-mcp-gateway",
+      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
       "env": {
         "GATEWAY_DEFAULT_AGENT": "developer"
       }
@@ -107,6 +104,8 @@ claude mcp add agent-mcp-gateway \
 ```
 
 Replace `/path/to/agent-mcp-gateway` with the actual path to your gateway installation.
+
+**Note:** The `--directory` flag tells `uv run` to change to the project directory before running, ensuring it finds `pyproject.toml` and the gateway configuration files.
 
 ### 4. Development Usage (Optional)
 
@@ -296,8 +295,7 @@ Add to your MCP client configuration (e.g., Claude Desktop config):
   "mcpServers": {
     "agent-mcp-gateway": {
       "command": "uv",
-      "args": ["run", "python", "/path/to/agent-mcp-gateway/main.py"],
-      "cwd": "/path/to/agent-mcp-gateway",
+      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
       "env": {
         "GATEWAY_MCP_CONFIG": ".mcp.json",
         "GATEWAY_RULES": ".mcp-gateway-rules.json"
@@ -310,9 +308,7 @@ Add to your MCP client configuration (e.g., Claude Desktop config):
 Or use Claude Code CLI:
 ```bash
 claude mcp add agent-mcp-gateway \
-  --command "uv" \
-  --args "run" "python" "/path/to/agent-mcp-gateway/main.py" \
-  --directory "/path/to/agent-mcp-gateway"
+  uv run --directory /path/to/agent-mcp-gateway python main.py
 ```
 
 **For Development/Testing:**
