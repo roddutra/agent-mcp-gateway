@@ -127,11 +127,10 @@ class AgentAccessControl(Middleware):
                 return default_agent_from_env
             else:
                 raise ToolError(
-                    f"Missing 'agent_id' parameter and GATEWAY_DEFAULT_AGENT ('{default_agent_from_env}') "
-                    f"is not defined in .mcp-gateway-rules.json. Either:\n"
-                    f"1. Provide 'agent_id' in your tool calls, OR\n"
-                    f"2. Define agent '{default_agent_from_env}' in your gateway rules config, OR\n"
-                    f"3. Add a 'default' agent to your gateway rules config"
+                    f"Missing 'agent_id' parameter and fallback agent '{default_agent_from_env}' "
+                    f"is not configured in gateway rules.\n"
+                    f"Either provide 'agent_id' in your tool calls, or ask the user to configure "
+                    f"the gateway fallback settings. See gateway documentation for configuration options."
                 )
 
         # Priority 2: Agent named "default" in gateway rules
@@ -140,10 +139,9 @@ class AgentAccessControl(Middleware):
 
         # Priority 3: No fallback configured - provide helpful error
         raise ToolError(
-            "Missing 'agent_id' parameter and no fallback agent configured. Either:\n"
-            "1. Provide 'agent_id' in your tool calls, OR\n"
-            "2. Set GATEWAY_DEFAULT_AGENT environment variable and define that agent in your rules, OR\n"
-            "3. Add a 'default' agent to your .mcp-gateway-rules.json config"
+            "Missing 'agent_id' parameter and no fallback agent configured.\n"
+            "Either provide 'agent_id' in your tool calls, or ask the user to configure "
+            "the gateway fallback settings. See gateway documentation for configuration options."
         )
 
     async def on_list_tools(self, context: MiddlewareContext, call_next):
