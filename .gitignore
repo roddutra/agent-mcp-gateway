@@ -37,3 +37,6 @@ htmlcov/
 *.swo
 *~
 .DS_Store
+
+# Temporary documentation (work-in-progress, troubleshooting)
+docs/temp/

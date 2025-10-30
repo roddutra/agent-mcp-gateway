@@ -263,3 +263,54 @@ GATEWAY_INIT_STRATEGY=eager                # eager|lazy
 - **Transparent proxying** - Downstream servers unaware of gateway
 - **Audit everything** - Complete operation logging
 - **Configuration-driven** - No code changes for permission updates
+
+## Documentation Guidelines
+
+### Permanent Documentation (committed to git)
+
+Store in appropriate `docs/` subdirectories based on content type:
+
+**docs/milestones/**
+- Milestone completion reports (M0_SUCCESS_REPORT.md, M1_SUCCESS_REPORT.md, etc.)
+- Success criteria validation
+- Performance metrics and test results
+- Historical records of milestone achievements
+
+**docs/specs/**
+- Product requirements (PRD.md)
+- Milestone specifications (M0-Foundation.md, M1-Core.md, M2-Production.md, M3-DX.md)
+- Technical specifications
+- Architecture decision records
+
+**docs/** (root)
+- Quick start guides (QUICKSTART_CONFIG.md)
+- Framework summaries (VALIDATION_FRAMEWORK_SUMMARY.md)
+- Implementation guides (fastmcp-implementation-guide.md)
+- General documentation that doesn't fit other categories
+
+### Temporary Documentation (NOT committed to git)
+
+Store in `docs/temp/` (gitignored) for work-in-progress content:
+
+**docs/temp/**
+- Work-in-progress feature documentation
+- Troubleshooting notes for open bugs
+- Investigation findings (not yet resolved)
+- Draft documentation being reviewed
+- Session handoff notes (use /session-doc slash command)
+- Temporary reference materials
+
+**Examples:**
+- `docs/temp/bug-hot-reload-investigation.md` - Active bug troubleshooting
+- `docs/temp/feature-draft-http-transport.md` - Feature design in progress
+- `docs/temp/session-2025-10-30.md` - Development session context
+
+### Important Rules
+
+1. **No documentation in project root** - All docs must be in `docs/` or subdirectories
+2. **Use relative paths** - Never use absolute paths like `/Users/username/...` in documentation
+   - ✓ Correct: `src/config.py`, `tests/test_config.py`
+   - ✗ Incorrect: `/Users/roddutra/Developer/--personal/agent-mcp-gateway/src/config.py`
+3. **Choose permanent vs temporary carefully** - If it's valuable for future reference, it's permanent
+4. **Temporary docs are truly temporary** - Move to permanent location or delete when work is done
+5. **Update existing docs** - Don't create duplicates; update existing documentation when appropriate

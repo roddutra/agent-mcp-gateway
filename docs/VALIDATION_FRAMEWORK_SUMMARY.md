@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document summarizes the validation framework added to `/Users/roddutra/Developer/--personal/agent-mcp-gateway/src/config.py` for Phase 1 of the hot config reload feature.
+This document summarizes the validation framework added to `src/config.py` for Phase 1 of the hot config reload feature.
 
 ## What Was Added
 
@@ -234,7 +234,7 @@ The `reload_configs()` function performs cross-validation using the existing `va
 - **43 existing tests:** All pass unchanged (validates backward compatibility)
 - **53 new tests:** Comprehensive validation and reload testing
 
-**New Test File:** `/Users/roddutra/Developer/--personal/agent-mcp-gateway/tests/test_validation_and_reload.py`
+**New Test File:** `tests/test_validation_and_reload.py`
 
 **Test Categories:**
 1. `TestValidateMCPConfig` (19 tests)
@@ -278,7 +278,7 @@ uv run pytest tests/ -v
 
 ### Demo Script
 
-A demo script is provided at `/Users/roddutra/Developer/--personal/agent-mcp-gateway/tests/demo_validation.py` that demonstrates:
+A demo script is provided at `tests/demo_validation.py` that demonstrates:
 1. Validation functions with valid and invalid configs
 2. Reload functionality with various error scenarios
 3. Edge cases (empty configs, wildcards, hierarchical agents)
@@ -391,16 +391,16 @@ This implementation covers **Phase 1: Validation Framework** only. Future phases
 
 ## Files Modified
 
-1. `/Users/roddutra/Developer/--personal/agent-mcp-gateway/src/config.py`
+1. `src/config.py`
    - Added: 4 new functions
    - Added: 2 global variables
    - Modified: 2 existing functions (added path storage)
    - Lines added: ~330
 
-2. `/Users/roddutra/Developer/--personal/agent-mcp-gateway/tests/test_validation_and_reload.py`
+2. `tests/test_validation_and_reload.py`
    - New file: 53 tests
    - Lines: ~700
 
-3. `/Users/roddutra/Developer/--personal/agent-mcp-gateway/tests/demo_validation.py`
+3. `tests/demo_validation.py`
    - New file: Demonstration script
    - Lines: ~200
