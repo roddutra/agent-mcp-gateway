@@ -47,7 +47,7 @@ Loads and validates gateway rules configuration from a JSON file.
 ```python
 from src.config import load_gateway_rules
 
-rules = load_gateway_rules("./config/gateway-rules.json")
+rules = load_gateway_rules(".mcp-gateway-rules.json")
 agents = rules["agents"]
 ```
 
@@ -62,7 +62,7 @@ Cross-validates that all servers referenced in rules exist in the MCP configurat
 from src.config import load_mcp_config, load_gateway_rules, validate_rules_against_servers
 
 mcp_config = load_mcp_config("./config/.mcp.json")
-rules = load_gateway_rules("./config/gateway-rules.json")
+rules = load_gateway_rules(".mcp-gateway-rules.json")
 
 warnings = validate_rules_against_servers(rules, mcp_config)
 for warning in warnings:
@@ -129,7 +129,7 @@ mcp_config_path = get_config_path(
 
 ### Gateway Rules Configuration
 
-**File:** `config/gateway-rules.json`
+**File:** `.mcp-gateway-rules.json`
 
 **Structure:**
 ```json
@@ -172,7 +172,7 @@ mcp_config_path = get_config_path(
 ### Configuration Paths
 
 - `GATEWAY_MCP_CONFIG` - Path to MCP servers config (default: `./config/.mcp.json`)
-- `GATEWAY_RULES` - Path to gateway rules config (default: `./config/gateway-rules.json`)
+- `GATEWAY_RULES` - Path to gateway rules config (default: `.mcp-gateway-rules.json`, fallback: `./config/.mcp-gateway-rules.json`)
 
 ### Variable Substitution
 
@@ -230,7 +230,7 @@ python validate_config.py
 
 # Validate with custom paths
 GATEWAY_MCP_CONFIG=./my-config.json \
-GATEWAY_RULES=./my-rules.json \
+GATEWAY_RULES=./.mcp-gateway-rules.json \
 python validate_config.py
 
 # Validate with required environment variables
@@ -283,7 +283,7 @@ mcp_config_path = get_config_path(
 )
 rules_path = get_config_path(
     "GATEWAY_RULES",
-    "./config/gateway-rules.json"
+    ".mcp-gateway-rules.json"
 )
 
 # Load configurations

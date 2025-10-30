@@ -253,11 +253,11 @@ result = execute_tool("researcher", "brave-search", "search", {"query": "..."})
 ## Environment Variables
 
 ```bash
-GATEWAY_MCP_CONFIG=./.mcp.json             # MCP server definitions
-GATEWAY_RULES=./gateway-rules.json         # Agent policies
-GATEWAY_DEFAULT_AGENT=developer            # Single-agent mode
-GATEWAY_TRANSPORT=stdio                    # stdio|http
-GATEWAY_INIT_STRATEGY=eager                # eager|lazy
+GATEWAY_MCP_CONFIG=./.mcp.json                      # MCP server definitions (default: .mcp.json, fallback: ./config/.mcp.json)
+GATEWAY_RULES=./.mcp-gateway-rules.json             # Gateway rules config (default: .mcp-gateway-rules.json, fallback: ./config/.mcp-gateway-rules.json)
+GATEWAY_DEFAULT_AGENT=developer                     # Single-agent mode
+GATEWAY_TRANSPORT=stdio                             # stdio|http
+GATEWAY_INIT_STRATEGY=eager                         # eager|lazy
 ```
 
 ---

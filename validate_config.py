@@ -10,6 +10,7 @@ from src.config import (
     validate_rules_against_servers,
     get_config_path,
     get_mcp_config_path,
+    get_gateway_rules_path,
 )
 
 
@@ -19,10 +20,7 @@ def main():
 
     # Get config paths
     mcp_config_path = get_mcp_config_path()
-    rules_path = get_config_path(
-        "GATEWAY_RULES",
-        "./config/gateway-rules.json"
-    )
+    rules_path = get_gateway_rules_path()
 
     print(f"MCP Servers Config: {mcp_config_path}")
     print(f"Gateway Rules: {rules_path}\n")

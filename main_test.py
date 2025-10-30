@@ -4,7 +4,7 @@ import os
 
 # Set test config paths before importing anything else
 os.environ["GATEWAY_MCP_CONFIG"] = "./config/.mcp.test.json"
-os.environ["GATEWAY_RULES"] = "./config/gateway-rules.json"
+os.environ["GATEWAY_RULES"] = "./config/.mcp-gateway-rules.json"
 
 # Now import and run main
 from main import main

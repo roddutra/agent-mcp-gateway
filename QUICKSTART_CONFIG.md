@@ -59,7 +59,9 @@ Edit `.mcp.json` (or `config/.mcp.json`) to define your MCP servers:
 
 ### Gateway Rules Configuration
 
-Edit `config/gateway-rules.json` to define agent policies:
+Edit `.mcp-gateway-rules.json` (or `config/.mcp-gateway-rules.json`) to define agent policies:
+
+**Note:** `.mcp-gateway-rules.json` follows the same naming pattern as `.mcp.json` and is designed for version control and team sharing. All team members can use the same agent access policies by checking this file into your repository.
 
 ```json
 {
@@ -98,7 +100,7 @@ python validate_config.py
 Agent MCP Gateway - Configuration Validator
 
 MCP Servers Config: /path/to/.mcp.json
-Gateway Rules: /path/to/config/gateway-rules.json
+Gateway Rules: /path/to/.mcp-gateway-rules.json
 
 Loading MCP server configuration...
 ✓ Loaded 3 server(s):
@@ -140,7 +142,7 @@ mcp_config_path = get_config_path(
 )
 rules_path = get_config_path(
     "GATEWAY_RULES",
-    "./config/gateway-rules.json"
+    ".mcp-gateway-rules.json"
 )
 
 # Load configurations
@@ -232,18 +234,18 @@ All tests should pass:
 ## Next Steps
 
 1. **Review** `src/CONFIG_README.md` for detailed documentation
-2. **Customize** agent policies in `config/gateway-rules.json`
+2. **Customize** agent policies in `.mcp-gateway-rules.json`
 3. **Add** more MCP servers to `.mcp.json`
 4. **Integrate** the configuration module into the gateway server
 
-**Tip:** If you're using Claude Code or other coding agents that use `.mcp.json`, you can reuse that file directly with the gateway!
+**Tip:** Both `.mcp.json` and `.mcp-gateway-rules.json` are designed for version control. Check them into your repository to ensure your entire team uses consistent MCP server configurations and agent access policies!
 
 ## Environment Variable Reference
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GATEWAY_MCP_CONFIG` | `.mcp.json` (fallback: `./config/.mcp.json`) | Path to MCP servers config |
-| `GATEWAY_RULES` | `./config/gateway-rules.json` | Path to gateway rules config |
+| `GATEWAY_RULES` | `.mcp-gateway-rules.json` (fallback: `./config/.mcp-gateway-rules.json`) | Path to gateway rules config |
 | `BRAVE_API_KEY` | *(required)* | API key for Brave Search |
 | `POSTGRES_URL` | *(required)* | PostgreSQL connection URL |
 

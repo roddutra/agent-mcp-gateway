@@ -71,7 +71,7 @@ from src.config import reload_configs
 
 mcp_config, gateway_rules, error = reload_configs(
     "/path/to/.mcp.json",
-    "/path/to/gateway-rules.json"
+    "/path/to/.mcp-gateway-rules.json"
 )
 
 if error is None:

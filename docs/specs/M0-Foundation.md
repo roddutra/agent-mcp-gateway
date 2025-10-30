@@ -42,8 +42,8 @@ M0 establishes the foundational infrastructure for the Agent MCP Gateway. This m
   │   ├── policy.py           # Policy engine
   │   └── audit.py            # Audit logging
   ├── config/
-  │   ├── .mcp.json           # Downstream server definitions
-  │   └── gateway-rules.json  # Agent access policies
+  │   ├── .mcp.json                   # Downstream server definitions
+  │   └── .mcp-gateway-rules.json     # Agent access policies
   ├── tests/
   │   └── __init__.py
   ├── pyproject.toml
@@ -81,7 +81,7 @@ M0 establishes the foundational infrastructure for the Agent MCP Gateway. This m
 - [x] Environment variable support
   - [x] Support `GATEWAY_MCP_CONFIG` for server config path
   - [x] Support `GATEWAY_RULES` for rules config path
-  - [x] Provide sensible defaults (./config/.mcp.json, ./config/gateway-rules.json)
+  - [x] Provide sensible defaults (.mcp.json, fallback: ./config/.mcp.json and .mcp-gateway-rules.json, fallback: ./config/.mcp-gateway-rules.json)
 
 **Code Reference:**
 ```python
@@ -303,7 +303,7 @@ from src.audit import AuditLogger
 def main():
     # Load configurations
     mcp_config_path = os.getenv("GATEWAY_MCP_CONFIG", "./config/.mcp.json")
-    rules_path = os.getenv("GATEWAY_RULES", "./config/gateway-rules.json")
+    rules_path = os.getenv("GATEWAY_RULES", "./config/.mcp-gateway-rules.json")
 
     mcp_config = load_mcp_config(mcp_config_path)
     gateway_rules = load_gateway_rules(rules_path)
@@ -351,7 +351,7 @@ if __name__ == "__main__":
   }
   ```
 
-- [x] Create example gateway-rules.json
+- [x] Create example .mcp-gateway-rules.json
   ```json
   {
     "agents": {
@@ -459,7 +459,7 @@ def test_policy_deny_before_allow():
    ```bash
    # Test with valid config
    GATEWAY_MCP_CONFIG=./config/.mcp.json \
-   GATEWAY_RULES=./config/gateway-rules.json \
+   GATEWAY_RULES=./config/.mcp-gateway-rules.json \
    uv run python main.py
 
    # Test with invalid config (should show clear error)

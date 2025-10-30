@@ -15,7 +15,7 @@ class SimpleHandler(FileSystemEventHandler):
 # Watch the config directory
 config_dir = os.path.abspath("config")
 print(f"Watching: {config_dir}", flush=True)
-print("Modify config/gateway-rules.json now...", flush=True)
+print("Modify config/.mcp-gateway-rules.json now...", flush=True)
 
 handler = SimpleHandler()
 observer = Observer()

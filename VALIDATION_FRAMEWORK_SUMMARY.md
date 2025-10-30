@@ -102,7 +102,7 @@ Loads and validates both configuration files without applying them to the runnin
 # Valid configs
 mcp_config, gateway_rules, error = reload_configs(
     "/path/to/.mcp.json",
-    "/path/to/gateway-rules.json"
+    "/path/to/.mcp-gateway-rules.json"
 )
 if error is None:
     print(f"Loaded {len(mcp_config['mcpServers'])} servers")

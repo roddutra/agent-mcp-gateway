@@ -69,7 +69,7 @@ def main():
     print(f"Observer started (thread: {observer})")
     print(f"Observer is alive: {observer.is_alive()}\n")
 
-    print(f"Now modify config/gateway-rules.json and watch for events...")
+    print(f"Now modify config/.mcp-gateway-rules.json and watch for events...")
     print(f"Press Ctrl+C to stop\n")
 
     try:

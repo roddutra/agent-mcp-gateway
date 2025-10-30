@@ -119,7 +119,7 @@ execute_tool(
 
 **Note:** `.mcp.json` is the standard MCP configuration file format used by Claude Code and other coding agents.
 
-**Gateway Rules Config** (`gateway-rules.json`):
+**Gateway Rules Config** (`.mcp-gateway-rules.json`):
 ```json
 {
   "agents": {
@@ -228,7 +228,7 @@ async def list_servers(agent_id: str, ctx: Context) -> list[dict]:
 
 ```bash
 GATEWAY_MCP_CONFIG=.mcp.json               # MCP server definitions (default: .mcp.json, fallback: ./config/.mcp.json)
-GATEWAY_RULES=./gateway-rules.json         # Agent policies
+GATEWAY_RULES=.mcp-gateway-rules.json      # Agent policies (default: .mcp-gateway-rules.json, fallback: ./config/.mcp-gateway-rules.json)
 GATEWAY_DEFAULT_AGENT=developer            # Single-agent mode fallback
 GATEWAY_TRANSPORT=stdio                    # stdio|http
 GATEWAY_INIT_STRATEGY=eager                # eager|lazy

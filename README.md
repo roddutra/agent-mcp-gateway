@@ -70,7 +70,7 @@ uv sync
 
 # 2. Set up configuration files
 cp config/.mcp.json.example .mcp.json
-cp config/gateway-rules.json.example config/gateway-rules.json
+cp config/.mcp-gateway-rules.json.example .mcp-gateway-rules.json
 
 # Edit configs with your servers and rules...
 # Note: .mcp.json is the standard MCP config format used by Claude Code
@@ -156,7 +156,7 @@ Defines the downstream MCP servers the gateway will proxy to. Uses the standard 
 
 ### 2. Gateway Rules Configuration
 
-**File:** `config/gateway-rules.json`
+**File:** `.mcp-gateway-rules.json` (or `config/.mcp-gateway-rules.json`)
 
 Defines per-agent access policies using deny-before-allow precedence:
 
@@ -249,23 +249,23 @@ uv run python main.py
 
 # Or specify custom paths
 export GATEWAY_MCP_CONFIG=./custom-mcp-config.json
-export GATEWAY_RULES=./custom-gateway-rules.json
+export GATEWAY_RULES=./custom-.mcp-gateway-rules.json
 export GATEWAY_AUDIT_LOG=./custom-audit.jsonl
 uv run python main.py
 ```
 
 **Environment Variables:**
 - `GATEWAY_MCP_CONFIG` - Path to MCP servers config (default: checks `.mcp.json` in current directory, then `./config/.mcp.json`)
-- `GATEWAY_RULES` - Path to gateway rules config (default: `./config/gateway-rules.json`)
+- `GATEWAY_RULES` - Path to gateway rules config (default: checks `.mcp-gateway-rules.json` in current directory, then `./config/.mcp-gateway-rules.json`)
 - `GATEWAY_AUDIT_LOG` - Path to audit log file (default: `./logs/audit.jsonl`)
 
-**Note on `.mcp.json`:** This is the standard MCP configuration file used by Claude Code and other coding agents. If you already have a `.mcp.json` file configured in your development environment, the gateway can reuse it directly.
+**Note on Configuration Files:** Both `.mcp.json` and `.mcp-gateway-rules.json` follow standard MCP naming conventions and are designed to be checked into version control for team sharing. This enables consistent agent access policies across your entire development team.
 
 ### Startup Output
 
 ```
 Loading MCP server configuration from: .mcp.json
-Loading gateway rules from: ./config/gateway-rules.json
+Loading gateway rules from: .mcp-gateway-rules.json
 Audit log will be written to: ./logs/audit.jsonl
 
 Initializing proxy connections to downstream servers...
@@ -466,7 +466,7 @@ result = await client.call_tool("execute_tool", {
   "available_servers": ["brave-search", "postgres"],
   "config_paths": {
     "mcp_config": "/path/to/.mcp.json",
-    "gateway_rules": "/path/to/gateway-rules.json"
+    "gateway_rules": "/path/to/.mcp-gateway-rules.json"
   },
   "message": "Gateway is operational. Check reload_status for hot reload health."
 }
@@ -596,7 +596,7 @@ Expected: Search results from Brave (if server configured and running).
 
 If tools fail:
 1. Check the **Logs pane** for error messages
-2. Verify your `agent_id` exists in `gateway-rules.json`
+2. Verify your `agent_id` exists in `.mcp-gateway-rules.json`
 3. Confirm downstream servers are configured in `.mcp.json`
 4. Check that required environment variables are set
 5. Review the **Message pane** for policy denial reasons
@@ -654,8 +654,9 @@ agent-mcp-gateway/
 │   └── test_integration_m1.py    # Integration tests
 ├── config/                       # Configuration files
 │   ├── .mcp.json.example         # MCP servers config example
-│   └── gateway-rules.json        # Access rules
+│   └── .mcp-gateway-rules.json.example  # Gateway rules example
 ├── .mcp.json                     # MCP servers config (user-created)
+├── .mcp-gateway-rules.json       # Gateway rules (user-created)
 ├── docs/                         # Documentation
 │   └── specs/                    # Specifications
 │       ├── PRD.md                # Product requirements

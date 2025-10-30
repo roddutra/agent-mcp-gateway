@@ -734,6 +734,30 @@ def get_mcp_config_path() -> str:
     return str(Path("./config/.mcp.json").expanduser().resolve())
 
 
+def get_gateway_rules_path() -> str:
+    """Get MCP Gateway rules file path using standard search order.
+
+    Search order:
+    1. GATEWAY_RULES environment variable (if set)
+    2. .mcp-gateway-rules.json in current working directory
+    3. ./config/.mcp-gateway-rules.json (fallback)
+
+    Returns:
+        Resolved path to .mcp-gateway-rules.json configuration file
+    """
+    # Check environment variable first
+    if env_path := os.getenv("GATEWAY_RULES"):
+        return str(Path(env_path).expanduser().resolve())
+
+    # Check current working directory
+    cwd_path = Path.cwd() / ".mcp-gateway-rules.json"
+    if cwd_path.exists():
+        return str(cwd_path.resolve())
+
+    # Fallback to config directory
+    return str(Path("./config/.mcp-gateway-rules.json").expanduser().resolve())
+
+
 def get_config_path(env_var: str, default: str) -> str:
     """Get configuration file path from environment variable or use default.
 

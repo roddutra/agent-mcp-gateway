@@ -112,7 +112,7 @@ GATEWAY_DEFAULT_AGENT=developer
 - [ ] Create validation command
   - [ ] Add `uv run python -m src.cli validate` command
   - [ ] Validate .mcp.json structure
-  - [ ] Validate gateway-rules.json structure
+  - [ ] Validate .mcp-gateway-rules.json structure
   - [ ] Check for common errors
   - [ ] Provide helpful error messages
 
@@ -149,7 +149,7 @@ def cli():
 
 @cli.command()
 @click.option("--mcp-config", default="./config/.mcp.json", help="Path to MCP servers config")
-@click.option("--rules", default="./config/gateway-rules.json", help="Path to gateway rules")
+@click.option("--rules", default="./config/.mcp-gateway-rules.json", help="Path to gateway rules")
 def validate(mcp_config: str, rules: str):
     """Validate gateway configuration files."""
     click.echo("🔍 Validating configuration files...")
@@ -327,7 +327,7 @@ def _generate_single_agent_config(output_path: Path):
     with open(output_path / ".mcp.json", "w") as f:
         json.dump(mcp_config, f, indent=2)
 
-    with open(output_path / "gateway-rules.json", "w") as f:
+    with open(output_path / ".mcp-gateway-rules.json", "w") as f:
         json.dump(rules_config, f, indent=2)
 
 if __name__ == "__main__":
@@ -399,7 +399,7 @@ USER gateway
 # Environment variables
 ENV PATH="/app/.venv/bin:$PATH" \
     GATEWAY_MCP_CONFIG="/config/.mcp.json" \
-    GATEWAY_RULES="/config/gateway-rules.json" \
+    GATEWAY_RULES="/config/.mcp-gateway-rules.json" \
     GATEWAY_TRANSPORT="http" \
     GATEWAY_HTTP_HOST="0.0.0.0" \
     GATEWAY_HTTP_PORT="8000"
@@ -429,7 +429,7 @@ services:
       - ./logs:/logs
     environment:
       - GATEWAY_MCP_CONFIG=/config/.mcp.json
-      - GATEWAY_RULES=/config/gateway-rules.json
+      - GATEWAY_RULES=/config/.mcp-gateway-rules.json
       - GATEWAY_TRANSPORT=http
       - GATEWAY_DEFAULT_AGENT=developer
     healthcheck:
@@ -493,7 +493,7 @@ uv sync
 
 # Configure
 cp config/.mcp.json.example config/.mcp.json
-cp config/gateway-rules.example.json config/gateway-rules.json
+cp config/.mcp-gateway-rules.example.json config/.mcp-gateway-rules.json
 
 # Run
 GATEWAY_DEFAULT_AGENT=developer uv run python main.py
@@ -720,7 +720,7 @@ import click
 from src.policy import PolicyEngine
 
 @click.command()
-@click.option("--rules", default="./config/gateway-rules.json")
+@click.option("--rules", default="./config/.mcp-gateway-rules.json")
 @click.argument("agent_id")
 @click.argument("server")
 @click.argument("tool")

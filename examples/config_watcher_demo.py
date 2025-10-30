@@ -7,7 +7,7 @@ a watcher with callback functions.
 Usage:
     python examples/config_watcher_demo.py
 
-Then modify .mcp.json or gateway-rules.json to see the watcher in action.
+Then modify .mcp.json or .mcp-gateway-rules.json to see the watcher in action.
 Press Ctrl+C to stop.
 """
 
@@ -48,7 +48,7 @@ def main():
     # Get config paths (adjust these to your actual paths)
     project_root = Path(__file__).parent.parent
     mcp_config = project_root / "examples" / "config" / ".mcp.json"
-    gateway_rules = project_root / "examples" / "config" / "gateway-rules.json"
+    gateway_rules = project_root / "examples" / "config" / ".mcp-gateway-rules.json"
 
     # Check if files exist
     if not mcp_config.exists():
