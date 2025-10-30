@@ -307,10 +307,8 @@ Store in `docs/temp/` (gitignored) for work-in-progress content:
 
 ### Important Rules
 
-1. **No documentation in project root** - All docs must be in `docs/` or subdirectories
+1. **No documentation in project root** - All docs must be in `docs/` or its subdirectories
 2. **Use relative paths** - Never use absolute paths like `/Users/username/...` in documentation
-   - ✓ Correct: `src/config.py`, `tests/test_config.py`
-   - ✗ Incorrect: `/Users/roddutra/Developer/--personal/agent-mcp-gateway/src/config.py`
 3. **Choose permanent vs temporary carefully** - If it's valuable for future reference, it's permanent
 4. **Temporary docs are truly temporary** - Move to permanent location or delete when work is done
 5. **Update existing docs** - Don't create duplicates; update existing documentation when appropriate
