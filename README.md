@@ -21,9 +21,14 @@ An MCP gateway that aggregates multiple MCP servers and provides policy-based ac
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Gateway Tools](#gateway-tools)
+- [Security Considerations](#security-considerations)
+- [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway)
 - [Testing](#testing)
 - [Development](#development)
 - [Architecture](#architecture)
+- [Future Features](#future-features)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 
 ---
 
@@ -58,6 +63,7 @@ The gateway sits between agents and downstream MCP servers, exposing only 3 ligh
 
 - ✅ **On-Demand Tool Discovery** - Load tool definitions only when needed
 - ✅ **Per-Agent Access Control** - Configure which servers/tools each agent can access
+- ✅ **Easy Agent Integration** - Simple template to add gateway support to any agent ([see guide](#configuring-agents-to-use-the-gateway))
 - ✅ **Deny-Before-Allow Policies** - Explicit deny rules take precedence
 - ✅ **Wildcard Support** - Pattern matching for tool names (`get_*`, `*_user`)
 - ✅ **Session Isolation** - Concurrent requests don't interfere
@@ -126,6 +132,10 @@ uv run python main.py
 # Test with MCP Inspector
 npx @modelcontextprotocol/inspector uv run python main.py
 ```
+
+### 5. Configure Your Agents (Recommended)
+
+To enable custom agents or subagents to properly use the gateway with access control, add gateway configuration to their system prompts. See [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway) for a copyable template and instructions.
 
 ---
 
@@ -272,6 +282,7 @@ Defines per-agent access policies using deny-before-allow precedence:
 **Agent Naming:**
 - Use hierarchical names: `team.role` (e.g., `backend.database`, `frontend.ui`)
 - Alphanumeric characters, hyphens, underscores, and dots allowed
+- **Configure your agents** to pass their identity: See [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway)
 
 ### Configuration Validation
 
@@ -372,6 +383,8 @@ Gateway is ready. Running with stdio transport...
 ## Gateway Tools
 
 The gateway exposes exactly 3 tools to agents. All tools accept an optional `agent_id` parameter for access control. When `agent_id` is not provided, the gateway uses a fallback chain to determine agent identity.
+
+**For Agent Developers:** To configure your agents to properly use these gateway tools with access control, see [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway).
 
 ### 1. `list_servers`
 
@@ -770,6 +783,50 @@ status = await client.call_tool("get_gateway_status", {
 ```
 
 **Note:** When debug mode is disabled (default), calling `get_gateway_status` will return an error indicating that the tool is not available. This prevents agents from accessing diagnostic information in production deployments.
+
+---
+
+## Configuring Agents to Use the Gateway
+
+When creating custom agents or configuring agent system prompts to use the gateway, add the following section to enable proper tool discovery and access control.
+
+### Agent Configuration Template
+
+Copy this template into your agent's system prompt (e.g., `CLAUDE.md`, custom agent configuration, etc.) and replace `YOUR_AGENT_NAME` with your agent's identifier:
+
+```markdown
+## MCP Gateway Access
+
+**Available Tools (via agent-mcp-gateway):**
+
+You have access to MCP servers through the agent-mcp-gateway. The specific servers and tools available to you are determined by the gateway's access control rules.
+
+**Tool Discovery Process:**
+
+When you need to use tools from downstream MCP servers:
+1. Use `agent_id: "YOUR_AGENT_NAME"` in ALL gateway tool calls for proper access control
+2. Call `list_servers` to discover which servers you have access to
+3. Call `get_server_tools` with the specific server name to discover available tools
+4. Use `execute_tool` to invoke tools with appropriate parameters
+5. If you cannot access a tool you need, immediately notify the orchestrator to inform the user
+
+**Important:** Always include `agent_id: "YOUR_AGENT_NAME"` in your gateway tool calls. This ensures proper access control and audit logging.
+```
+
+### Why This Approach?
+
+This template:
+- **Avoids hardcoding** server/tool lists in agent prompts (keeps prompts lightweight)
+- **Enables dynamic discovery** of available tools based on gateway rules
+- **Ensures proper access control** by requiring `agent_id` in all calls
+- **Maintains audit trail** for security and debugging
+- **Adapts automatically** when gateway rules or servers change
+
+**Note:** If an agent isn't invoking the gateway when expected, you may add high-level hints about available servers (e.g., "You have access to web search and documentation tools") to nudge the agent toward discovery. However, avoid listing all tools and their full definitions in the agent prompt - this defeats the purpose of on-demand discovery and wastes context window space.
+
+For examples of complete agent configurations, see:
+- [`.claude/agents/researcher.md`](.claude/agents/researcher.md) - Research specialist agent
+- [`.claude/agents/mcp-developer.md`](.claude/agents/mcp-developer.md) - MCP development expert agent
 
 ---
 

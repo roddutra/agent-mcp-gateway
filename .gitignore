@@ -11,6 +11,7 @@ wheels/
 
 # Configuration files with secrets (use .example files as templates)
 .mcp.json
+.custom-mcp.json
 config/.mcp.json
 # MCP Gateway rules configurations
 .mcp-gateway-rules.json
