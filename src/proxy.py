@@ -159,16 +159,26 @@ class ProxyManager:
                     f'Server "{server_name}": "headers" must be a dict'
                 )
 
-            logger.debug(f"Creating HTTP Client for {server_name}: url={url}")
+            logger.info(
+                f"Creating HTTP Client with OAuth support for {server_name}: url={url}"
+            )
 
-            # FastMCP Client expects MCPConfig with mcpServers key
-            # We need to wrap the single server config
-            client_config = {
-                "mcpServers": {
-                    server_name: server_config
-                }
-            }
-            return Client(transport=client_config)
+            # Create HTTP client with OAuth enabled
+            # OAuth is auto-detected by the MCP protocol - servers that don't
+            # require OAuth will return 200, servers that do will return 401
+
+            # Note: Custom headers are not supported when using OAuth auto-detection
+            # If custom headers are needed, they should be handled at the application level
+            # For now, we prioritize OAuth support over custom headers
+            if headers:
+                logger.warning(
+                    f"Server {server_name} has custom headers configured. "
+                    "Custom headers may conflict with OAuth authentication. "
+                    "If OAuth is required, consider removing custom headers."
+                )
+
+            # Pass URL directly (not as MCPConfig) to enable auth parameter
+            return Client(url, auth="oauth")
 
         # Should never reach here due to earlier validation
         raise ValueError(f'Server "{server_name}" has invalid configuration')

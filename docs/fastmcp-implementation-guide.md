@@ -568,6 +568,14 @@ weather_client = ProxyClient(
     url="https://weather-api.example.com/mcp"
 )
 
+# Or for OAuth-protected HTTP server
+notion_client = ProxyClient(
+    url="https://mcp.notion.com/mcp",
+    auth="oauth"  # Enables OAuth auto-detection
+)
+# Note: OAuth activates only if server returns 401
+# Browser opens for initial authentication, tokens cached thereafter
+
 # Connect and use
 async with github_client:
     tools = await github_client.list_tools()

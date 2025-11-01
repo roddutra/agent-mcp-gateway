@@ -5,11 +5,11 @@ An MCP gateway that aggregates multiple MCP servers and provides policy-based ac
 ## Status
 
 - ✅ **M0: Foundation** - Configuration, policy engine, audit logging, `list_servers` tool
-- ✅ **M1: Core** - Proxy infrastructure, `get_server_tools`, `execute_tool`, middleware, metrics, hot reload
+- ✅ **M1: Core** - Proxy infrastructure, `get_server_tools`, `execute_tool`, middleware, metrics, hot reload, OAuth support
 - 🚧 **M2: Production** - HTTP transport, health checks (planned)
 - 🚧 **M3: DX** - Single-agent mode, config validation CLI, Docker (planned)
 
-**Current Version:** M1-Core Complete
+**Current Version:** M1-Core Complete (with OAuth)
 
 ---
 
@@ -299,6 +299,100 @@ uv run python main.py
 - Structural errors (invalid JSON, missing required fields) → Fail startup/reload
 - Undefined server references → Log warnings, continue with valid rules
 - Policy conflicts → Deny-before-allow precedence resolves automatically
+
+### 3. OAuth Support for Downstream Servers
+
+The gateway automatically supports OAuth-protected downstream MCP servers (like Notion MCP, GitHub MCP) through FastMCP's built-in OAuth auto-detection. No special configuration is needed - OAuth is enabled automatically for all HTTP servers.
+
+#### How OAuth Auto-Detection Works
+
+**The MCP protocol uses automatic OAuth discovery** - you don't need to know which servers require OAuth ahead of time. When your gateway connects to a server:
+
+- **No OAuth needed?** → Server responds with 200 OK, gateway connects normally
+- **OAuth needed?** → Server responds with 401 Unauthorized, triggering automatic OAuth flow
+
+The gateway enables OAuth for all HTTP clients, but it only activates when a server returns HTTP 401 with OAuth metadata.
+
+#### Configuring OAuth-Protected Servers
+
+Simply add the server URL to your `.mcp.json` - no explicit OAuth configuration required:
+
+```json
+{
+  "mcpServers": {
+    "notion": {
+      "url": "https://mcp.notion.com/mcp",
+      "transport": "http"
+    },
+    "github": {
+      "url": "https://github-mcp.example.com/mcp",
+      "transport": "http"
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {"BRAVE_API_KEY": "${BRAVE_API_KEY}"}
+    }
+  }
+}
+```
+
+**What happens when the gateway starts:**
+1. **brave-search (stdio):** No OAuth - uses API key from environment variable
+2. **notion (HTTP):** Server returns 401 → Browser opens for Notion authentication → Tokens cached
+3. **github (HTTP):** Server returns 401 → Browser opens for GitHub authentication → Tokens cached
+
+#### First-Time OAuth Setup
+
+On first connection to an OAuth-protected server:
+
+1. **Gateway detects OAuth requirement** (server returns 401)
+2. **Browser opens automatically** on your machine
+3. **You authenticate** with the OAuth provider (Notion, GitHub, etc.)
+4. **Browser shows "Authentication successful"** and closes
+5. **Tokens are cached** in `~/.fastmcp/oauth-mcp-client-cache/`
+6. **Gateway connects** and all tools become available
+
+#### Subsequent Sessions
+
+After initial authentication:
+- Tokens load from cache automatically
+- No browser windows open
+- No authentication prompts
+- Automatic token refresh when needed
+- Works exactly like non-OAuth servers
+
+**Token storage location:** `~/.fastmcp/oauth-mcp-client-cache/`
+
+#### OAuth Troubleshooting
+
+**Browser doesn't open:**
+- Ensure your system can open browser windows
+- Test: `python -m webbrowser https://example.com`
+- Check gateway has permissions to spawn browser process
+
+**"Authentication failed" error:**
+- Verify the server URL in `.mcp.json` is correct
+- Check that the MCP server is running and accessible
+- Try accessing the server URL directly in browser
+
+**Need to re-authenticate:**
+```bash
+# Clear cached tokens
+rm -rf ~/.fastmcp/oauth-mcp-client-cache/
+
+# Restart gateway - browser will open again for authentication
+```
+
+**Headless environments (Docker, CI/CD):**
+OAuth requires browser interaction for initial authentication. For headless environments:
+1. Authenticate on a machine with browser access
+2. Copy cached tokens to headless environment:
+   ```bash
+   scp -r ~/.fastmcp/oauth-mcp-client-cache/ user@server:~/.fastmcp/
+   ```
+
+**For detailed OAuth setup and troubleshooting:** See [`docs/oauth-user-guide.md`](docs/oauth-user-guide.md)
 
 ---
 

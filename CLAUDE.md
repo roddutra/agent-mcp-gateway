@@ -71,6 +71,7 @@ Agent → Gateway (3 tools, ~400 tokens) → Policy Engine → Downstream MCP Se
 3. **Proxy Layer** (Transparent)
    - Forwards tool executions to downstream servers
    - Handles stdio (npx/uvx) and HTTP transports
+   - OAuth support for HTTP servers (auto-detection via 401 responses)
    - Automatic tool prefixing to avoid naming conflicts
 
 4. **Session Manager**
@@ -191,6 +192,21 @@ export GATEWAY_DEFAULT_AGENT=developer
 ```
 
 See `docs/claude-code-subagent-mcp-limitations.md` for full details on this limitation and workarounds.
+
+### OAuth Authentication for Downstream Servers
+
+The gateway supports OAuth-protected downstream MCP servers (Notion, GitHub, etc.) through automatic OAuth detection. The `ProxyManager` in `src/proxy.py` enables `auth="oauth"` for all HTTP clients - OAuth only activates when a server returns 401 (MCP protocol auto-detection).
+
+**Key Points:**
+- Zero configuration needed - just add server URL to `.mcp.json`
+- OAuth triggers automatically on 401 response (RFC 9728)
+- stdio servers unchanged (use API keys via env vars)
+- Tokens cached in `~/.fastmcp/oauth-mcp-client-cache/`
+- Browser opens once for initial auth, then automatic
+
+**Implementation:** See `src/proxy.py` lines 148-181 (`_create_client()` method)
+**User Guide:** See `docs/oauth-user-guide.md` for setup and troubleshooting
+**Architecture Details:** See `docs/specs/m1-oauth.md` and `docs/downstream-mcp-oauth-proxying.md`
 
 ## FastMCP 2.0 Implementation Patterns
 
@@ -379,6 +395,36 @@ Store in `docs/temp/` (gitignored) for work-in-progress content:
 3. **Choose permanent vs temporary carefully** - If it's valuable for future reference, it's permanent
 4. **Temporary docs are truly temporary** - Move to permanent location or delete when work is done
 5. **Update existing docs** - Don't create duplicates; update existing documentation when appropriate
+6. **Keep docs concise** - Reference other docs instead of duplicating content; only include information that is necessary, valuable, or unique
+7. **No comments in JSON files** - JSON doesn't support comments; users should be able to copy example files without cleaning content
+8. **Reference, don't duplicate** - If information is well-documented elsewhere, link to it rather than repeating it
+
+### Documentation Content Guidelines
+
+**What to include in each file type:**
+
+**CLAUDE.md (this file):**
+- High-level overviews with links to detailed docs
+- Critical implementation patterns specific to this project
+- Information Claude needs for immediate context
+- References to detailed documentation for deep dives
+
+**README.md:**
+- User-facing quick start and usage instructions
+- Essential configuration examples
+- Links to detailed guides for advanced topics
+
+**Configuration Examples (config/*.example):**
+- Valid, copy-paste ready configurations only
+- No comments or explanations (especially not in JSON files)
+- Examples should be self-explanatory through naming
+- Documentation belongs in README.md or dedicated guides
+
+**Detailed Guides (docs/*.md):**
+- Comprehensive explanations and tutorials
+- Troubleshooting procedures
+- Architecture deep dives
+- Reference material for specific features
 
 ### Documentation Naming Convention
 

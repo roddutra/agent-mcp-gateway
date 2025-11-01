@@ -17,6 +17,10 @@
     "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
+    },
+    "notion": {
+      "url": "https://mcp.notion.com/mcp",
+      "transport": "http"
     }
   }
 }
