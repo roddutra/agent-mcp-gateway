@@ -504,10 +504,11 @@ After M1 completion, critical enhancements were made to improve hot reload robus
 - **Access:** Via `get_reload_status()` function
 
 #### 4. Diagnostic Tool (src/gateway.py)
-- **New Tool:** `get_gateway_status(agent_id: str)`
+- **New Tool:** `get_gateway_status(agent_id: str)` (debug mode only)
 - **Returns:** Reload status, policy state, available servers, config paths
 - **Benefit:** Agents can programmatically check gateway health
 - **Use Case:** Troubleshooting, monitoring, health checks
+- **Security:** Only available when GATEWAY_DEBUG=true or --debug flag is set
 
 ### Test Coverage
 

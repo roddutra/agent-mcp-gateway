@@ -70,6 +70,13 @@ execute_tool(
 # Proxies tool execution to downstream server
 # Handles all protocol translation and response forwarding
 # agent_id is optional - uses fallback chain if not provided
+
+# Debug-only diagnostic tool (not included in ~400 token count):
+get_gateway_status(agent_id: Optional[str] = None) -> dict
+# Only available when GATEWAY_DEBUG=true or --debug flag is set
+# Returns reload status, policy state, available servers, config paths
+# Used for troubleshooting and monitoring
+# agent_id is optional - uses fallback chain if not provided
 ```
 
 **Agent Identity Fallback Chain:**
@@ -80,10 +87,13 @@ When `agent_id` is not provided:
 
 **Security:** Follows principle of least privilege - no implicit "allow all" access.
 
+**Debug Mode:** The `get_gateway_status` tool is only exposed when debug mode is enabled (GATEWAY_DEBUG=true). This prevents agents from accessing diagnostic information in production environments. See Security Considerations in README.md.
+
 This minimal interface replaces loading all downstream tools upfront, allowing agents to:
 1. Discover available servers (`list_servers`)
 2. Load only needed tool definitions (`get_server_tools`)
 3. Execute tools without bloating context (`execute_tool`)
+4. Monitor gateway health (debug mode only: `get_gateway_status`)
 
 ### Example Impact
 

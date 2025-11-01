@@ -1,5 +1,6 @@
 """Main entry point for Agent MCP Gateway."""
 
+import argparse
 import asyncio
 import logging
 import logging.handlers
@@ -307,10 +308,35 @@ def get_reload_status() -> dict:
         }
 
 
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments.
+
+    Returns:
+        Parsed command line arguments including debug flag
+    """
+    parser = argparse.ArgumentParser(
+        description="Agent MCP Gateway - Policy-based proxy for MCP servers",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug mode (exposes get_gateway_status tool for diagnostics)",
+    )
+    return parser.parse_args()
+
+
 def main():
     """Initialize and run the Agent MCP Gateway."""
     global _mcp_config_path, _gateway_rules_path, _policy_engine, _proxy_manager, _config_watcher
     global _last_mcp_config_mtime, _last_gateway_rules_mtime
+
+    # Parse command line arguments
+    args = parse_args()
+
+    # Check for debug mode from environment variable or CLI argument
+    # CLI argument takes precedence over environment variable
+    debug_mode = args.debug or os.getenv("GATEWAY_DEBUG", "").lower() in ("true", "1", "yes")
 
     try:
         # Get configuration file paths from environment or use defaults
@@ -332,6 +358,10 @@ def main():
         print(f"Audit log will be written to: {audit_log_path}", file=sys.stderr)
         if default_agent_id:
             print(f"Default agent for fallback chain: {default_agent_id}", file=sys.stderr)
+        if debug_mode:
+            print(f"Debug mode: ENABLED (get_gateway_status tool available)", file=sys.stderr)
+        else:
+            print(f"Debug mode: DISABLED (use --debug or GATEWAY_DEBUG=true to enable)", file=sys.stderr)
 
         # Load configurations
         mcp_config = load_mcp_config(_mcp_config_path)
@@ -384,7 +414,8 @@ def main():
             _proxy_manager,
             check_config_changes,
             get_reload_status,
-            default_agent_id
+            default_agent_id,
+            debug_mode
         )
 
         # Initialize ConfigWatcher for hot reloading
@@ -431,7 +462,10 @@ def main():
         print(f"  - {len(mcp_config.get('mcpServers', {}))} MCP server(s) configured", file=sys.stderr)
         print(f"  - {len(gateway_rules.get('agents', {}))} agent(s) configured", file=sys.stderr)
         print(f"  - Default policy: {'deny' if gateway_rules.get('defaults', {}).get('deny_on_missing_agent', True) else 'allow'} unknown agents", file=sys.stderr)
-        print(f"  - 3 gateway tools available: list_servers, get_server_tools, execute_tool", file=sys.stderr)
+        if debug_mode:
+            print(f"  - 4 gateway tools available: list_servers, get_server_tools, execute_tool, get_gateway_status", file=sys.stderr)
+        else:
+            print(f"  - 3 gateway tools available: list_servers, get_server_tools, execute_tool", file=sys.stderr)
         print("\nGateway is ready. Running with stdio transport...\n", file=sys.stderr)
 
         # Run gateway with stdio transport (default)

@@ -602,13 +602,14 @@ class TestGetGatewayStatusTool:
                 }
             }
 
-        # Initialize gateway
+        # Initialize gateway with debug mode enabled to access get_gateway_status
         initialize_gateway(
             policy_engine=engine,
             mcp_config=mcp_config,
             proxy_manager=None,  # Not needed for this test
             check_config_changes_fn=None,
-            get_reload_status_fn=mock_get_reload_status
+            get_reload_status_fn=mock_get_reload_status,
+            debug_mode=True
         )
 
         # Call get_gateway_status
@@ -673,7 +674,8 @@ class TestGetGatewayStatusTool:
             mcp_config=mcp_config,
             proxy_manager=None,
             check_config_changes_fn=None,
-            get_reload_status_fn=None
+            get_reload_status_fn=None,
+            debug_mode=True
         )
 
         # Get initial status
@@ -850,7 +852,8 @@ class TestAllFixesWorkingTogether:
                 mcp_config=loaded_mcp_config,
                 proxy_manager=None,
                 check_config_changes_fn=None,
-                get_reload_status_fn=mock_get_reload_status
+                get_reload_status_fn=mock_get_reload_status,
+                debug_mode=True
             )
 
             # Trigger multiple reloads while background thread is running

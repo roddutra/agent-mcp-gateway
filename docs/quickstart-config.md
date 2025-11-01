@@ -274,6 +274,7 @@ All tests should pass:
 | `GATEWAY_MCP_CONFIG` | `.mcp.json` (fallback: `./config/.mcp.json`) | Path to MCP servers config |
 | `GATEWAY_RULES` | `.mcp-gateway-rules.json` (fallback: `./config/.mcp-gateway-rules.json`) | Path to gateway rules config |
 | `GATEWAY_DEFAULT_AGENT` | *(none)* | Default agent when `agent_id` not provided (optional) |
+| `GATEWAY_DEBUG` | `false` | Enable debug mode to expose `get_gateway_status` tool |
 | `BRAVE_API_KEY` | *(required)* | API key for Brave Search |
 | `POSTGRES_URL` | *(required)* | PostgreSQL connection URL |
 

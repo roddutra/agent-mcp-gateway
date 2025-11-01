@@ -21,6 +21,7 @@ _proxy_manager: ProxyManager | None = None
 _check_config_changes_fn: Any | None = None  # Fallback reload checker
 _get_reload_status_fn: Any | None = None  # Reload status getter for diagnostics
 _default_agent_id: str | None = None  # Default agent for fallback chain
+_debug_mode: bool = False  # Debug mode flag
 
 
 def initialize_gateway(
@@ -29,7 +30,8 @@ def initialize_gateway(
     proxy_manager: ProxyManager | None = None,
     check_config_changes_fn: Any = None,
     get_reload_status_fn: Any = None,
-    default_agent_id: str | None = None
+    default_agent_id: str | None = None,
+    debug_mode: bool = False
 ):
     """Initialize gateway with policy engine, MCP config, and proxy manager.
 
@@ -42,14 +44,20 @@ def initialize_gateway(
         check_config_changes_fn: Optional function to check for config changes (fallback mechanism)
         get_reload_status_fn: Optional function to get reload status for diagnostics
         default_agent_id: Optional default agent ID from GATEWAY_DEFAULT_AGENT env var for fallback chain
+        debug_mode: Whether debug mode is enabled (exposes get_gateway_status tool)
     """
-    global _policy_engine, _mcp_config, _proxy_manager, _check_config_changes_fn, _get_reload_status_fn, _default_agent_id
+    global _policy_engine, _mcp_config, _proxy_manager, _check_config_changes_fn, _get_reload_status_fn, _default_agent_id, _debug_mode
     _policy_engine = policy_engine
     _mcp_config = mcp_config
     _proxy_manager = proxy_manager
     _check_config_changes_fn = check_config_changes_fn
     _get_reload_status_fn = get_reload_status_fn
     _default_agent_id = default_agent_id
+    _debug_mode = debug_mode
+
+    # Conditionally register debug tools based on debug mode
+    if debug_mode:
+        _register_debug_tools()
 
 
 def get_default_agent_id() -> str | None:
@@ -59,6 +67,19 @@ def get_default_agent_id() -> str | None:
         Default agent ID from GATEWAY_DEFAULT_AGENT env var, or None if not set
     """
     return _default_agent_id
+
+
+def _register_debug_tools():
+    """Register debug-only tools when debug mode is enabled.
+
+    This function is called by initialize_gateway() when debug_mode=True.
+    It registers additional diagnostic tools that should only be available
+    in debug/development environments.
+    """
+    # Register get_gateway_status tool
+    # Note: The function itself is always defined (for testing), but only
+    # registered as a gateway tool when debug mode is enabled
+    gateway.tool(get_gateway_status)
 
 
 @gateway.tool
@@ -514,9 +535,11 @@ async def _execute_tool_impl(
 execute_tool = gateway.tool(_execute_tool_impl)
 
 
-@gateway.tool
 async def get_gateway_status(agent_id: Optional[str] = None) -> dict:
     """Get comprehensive gateway status and diagnostics.
+
+    NOTE: This function is only exposed as a gateway tool when debug mode is enabled.
+    It remains accessible for testing purposes even when debug mode is disabled.
 
     This tool provides visibility into gateway health and configuration state,
     including hot reload status, policy engine state, and available servers.

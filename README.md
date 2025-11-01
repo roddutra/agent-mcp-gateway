@@ -9,7 +9,7 @@ An MCP gateway that aggregates multiple MCP servers and provides policy-based ac
 - 🚧 **M2: Production** - HTTP transport, health checks (planned)
 - 🚧 **M3: DX** - Single-agent mode, config validation CLI, Docker (planned)
 
-**Current Version:** M1-Core Complete (420 tests, 92% coverage)
+**Current Version:** M1-Core Complete
 
 ---
 
@@ -31,7 +31,7 @@ An MCP gateway that aggregates multiple MCP servers and provides policy-based ac
 
 ### The Problem
 
-When multiple MCP servers are configured in development environments (Claude Code, Cursor, VS Code), all tool definitions from all servers load into every agent's context window at startup:
+When multiple MCP servers are configured in development environments (Claude Code, Cursor, VS Code), all tool definitions from all servers load into every agent's and subagent's context window at startup:
 
 - 5,000-50,000+ tokens consumed upfront
 - 80-95% of loaded tools never used by individual agents
@@ -46,19 +46,27 @@ The Agent MCP Gateway acts as a single MCP server that proxies to multiple downs
 - **90%+ context reduction**
 - Policy-based access control per agent/subagent
 
+### How It Works
+
+![Agent MCP Gateway Architecture](docs/diagram-snippet.png)
+
+The gateway sits between agents and downstream MCP servers, exposing only 3 lightweight tools. When an agent needs specific functionality, it discovers available servers and tools through the gateway, which filters visibility based on policy rules - agents only see servers and tools they have access to. This reduces each agent's context window to only relevant tools, while the gateway handles proxying authorized requests to downstream servers.
+
+**[View detailed diagram with examples →](docs/diagram-full.png)** (includes downstream servers, tools, and gateway rules examples)
+
 ### Key Features
 
-✅ **On-Demand Tool Discovery** - Load tool definitions only when needed
-✅ **Per-Agent Access Control** - Configure which servers/tools each agent can access
-✅ **Deny-Before-Allow Policies** - Explicit deny rules take precedence
-✅ **Wildcard Support** - Pattern matching for tool names (`get_*`, `*_user`)
-✅ **Session Isolation** - Concurrent requests don't interfere
-✅ **Transparent Proxying** - Downstream servers unaware of gateway
-✅ **Audit Logging** - All operations logged for monitoring
-✅ **Performance Metrics** - Track latency and error rates per agent/operation
-✅ **Hot Configuration Reload** - Update rules/servers without restart
-✅ **Thread-Safe Operations** - Safe concurrent access during reloads
-✅ **Diagnostic Tools** - Health monitoring via `get_gateway_status`
+- ✅ **On-Demand Tool Discovery** - Load tool definitions only when needed
+- ✅ **Per-Agent Access Control** - Configure which servers/tools each agent can access
+- ✅ **Deny-Before-Allow Policies** - Explicit deny rules take precedence
+- ✅ **Wildcard Support** - Pattern matching for tool names (`get_*`, `*_user`)
+- ✅ **Session Isolation** - Concurrent requests don't interfere
+- ✅ **Transparent Proxying** - Downstream servers unaware of gateway
+- ✅ **Audit Logging** - All operations logged for monitoring
+- ✅ **Performance Metrics** - Track latency and error rates per agent/operation
+- ✅ **Hot Configuration Reload** - Update rules/servers without restart
+- ✅ **Thread-Safe Operations** - Safe concurrent access during reloads
+- ✅ **Diagnostic Tools** - Health monitoring via `get_gateway_status` (debug mode only)
 
 ---
 
@@ -329,6 +337,7 @@ uv run python main.py
 - `GATEWAY_RULES` - Path to gateway rules config (default: checks `.mcp-gateway-rules.json` in current directory, then `./config/.mcp-gateway-rules.json`)
 - `GATEWAY_AUDIT_LOG` - Path to audit log file (default: `./logs/audit.jsonl`)
 - `GATEWAY_DEFAULT_AGENT` - Default agent identity when `agent_id` is not provided (optional, see [Agent Identity Fallback](#agent-identity-fallback))
+- `GATEWAY_DEBUG` - Enable debug mode to expose `get_gateway_status` tool (default: false, see [Security Considerations](#security-considerations))
 
 **Note on Configuration Files:**
 - `.mcp.json` follows standard MCP naming conventions and can be checked into version control for team sharing
@@ -353,6 +362,7 @@ Agent MCP Gateway initialized successfully
   - 3 agent(s) configured
   - Default policy: deny unknown agents
   - 3 gateway tools available: list_servers, get_server_tools, execute_tool
+  (4 tools if GATEWAY_DEBUG=true: includes get_gateway_status)
 
 Gateway is ready. Running with stdio transport...
 ```
@@ -460,10 +470,6 @@ tools = await client.call_tool("get_server_tools", {
 
 Executes a tool on a downstream MCP server with transparent result forwarding.
 
-### 4. `get_gateway_status`
-
-Returns comprehensive gateway health and diagnostics information.
-
 **Parameters:**
 - `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Fallback](#agent-identity-fallback))
 - `server` (string, required) - Name of the downstream MCP server
@@ -508,6 +514,12 @@ result = await client.call_tool("execute_tool", {
 })
 ```
 
+### 4. `get_gateway_status` (Debug Mode Only)
+
+Returns comprehensive gateway health and diagnostics information.
+
+**Important:** This tool is only available when debug mode is enabled (via `GATEWAY_DEBUG=true` environment variable or `--debug` CLI flag). See [Security Considerations](#security-considerations) for details.
+
 **Parameters:**
 - `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Fallback](#agent-identity-fallback))
 
@@ -547,7 +559,7 @@ result = await client.call_tool("execute_tool", {
 
 **Example:**
 ```python
-# Check gateway health and reload status
+# Check gateway health and reload status (requires GATEWAY_DEBUG=true)
 status = await client.call_tool("get_gateway_status", {
     "agent_id": "admin"
 })
@@ -687,6 +699,78 @@ export GATEWAY_RULES=~/.claude/mcp-gateway-rules.json
 
 **Recommendation:** If your gateway rules are used for security-critical access control, always store them outside the project directory. If they're only used for context optimization convenience, in-project storage is acceptable.
 
+### Debug Mode and Gateway Status Tool
+
+The `get_gateway_status` tool provides comprehensive diagnostic information about the gateway's internal state, including:
+- Hot reload status and timestamps
+- PolicyEngine configuration details
+- Available server names
+- Configuration file paths
+
+**Security Consideration:** In production environments, this diagnostic information could help coding agents understand the gateway's permission structure, identify privileged agent names, or map the infrastructure. Therefore, the `get_gateway_status` tool is **only available when debug mode is explicitly enabled**.
+
+#### Enabling Debug Mode
+
+Debug mode can be enabled in two ways:
+
+**Option 1: Environment Variable (Recommended for MCP clients)**
+```bash
+# Enable debug mode via environment variable
+export GATEWAY_DEBUG=true
+
+# Add to your MCP client configuration
+{
+  "mcpServers": {
+    "agent-mcp-gateway": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
+      "env": {
+        "GATEWAY_DEBUG": "true"
+      }
+    }
+  }
+}
+```
+
+**Option 2: CLI Flag (For direct execution)**
+```bash
+# Run gateway with debug mode
+uv run python main.py --debug
+```
+
+#### When to Enable Debug Mode
+
+**Enable debug mode when:**
+- Troubleshooting configuration issues
+- Verifying hot reload functionality
+- Debugging policy evaluation
+- Local development and testing
+
+**Disable debug mode when:**
+- Running in production with security-sensitive access control
+- Multiple agents with different privilege levels
+- Rules file location is security-critical
+- Agents should not inspect gateway internals
+
+#### Using get_gateway_status in Debug Mode
+
+When debug mode is enabled, agents can check gateway health:
+
+```python
+# Check gateway status (only works with GATEWAY_DEBUG=true)
+status = await client.call_tool("get_gateway_status", {
+    "agent_id": "developer"
+})
+
+# Response includes:
+# - reload_status: Hot reload timestamps and errors
+# - policy_state: Number of agents and defaults
+# - available_servers: List of server names
+# - config_paths: Configuration file locations
+```
+
+**Note:** When debug mode is disabled (default), calling `get_gateway_status` will return an error indicating that the tool is not available. This prevents agents from accessing diagnostic information in production deployments.
+
 ---
 
 ## Testing
@@ -706,12 +790,6 @@ uv run pytest tests/test_gateway.py -v
 # Run integration tests only
 uv run pytest tests/test_integration_m1.py -v
 ```
-
-**Test Results:**
-- 420 tests (100% passing)
-- 92% code coverage
-- Unit tests: 396
-- Integration tests: 24
 
 ### Testing with MCP Inspector
 
@@ -811,45 +889,12 @@ asyncio.run(test())
 
 ```
 agent-mcp-gateway/
-├── src/                          # Source code
-│   ├── config.py                 # Configuration loading & validation
-│   ├── policy.py                 # Policy engine (thread-safe)
-│   ├── audit.py                  # Audit logging
-│   ├── proxy.py                  # Proxy manager (hot reload)
-│   ├── metrics.py                # Metrics collection
-│   ├── middleware.py             # Access control middleware
-│   ├── config_watcher.py         # Hot reload file watching
-│   └── gateway.py                # Gateway tools + diagnostics
+├── src/                          # Core gateway implementation
 ├── tests/                        # Test suite
-│   ├── test_config.py            # Config tests
-│   ├── test_policy.py            # Policy tests (with reload)
-│   ├── test_audit.py             # Audit tests
-│   ├── test_proxy.py             # Proxy tests (with reload)
-│   ├── test_metrics.py           # Metrics tests
-│   ├── test_middleware.py        # Middleware tests
-│   ├── test_get_server_tools.py  # Tool tests
-│   ├── test_gateway_tools.py     # Tool tests
-│   ├── test_config_watcher.py    # Hot reload tests
-│   ├── test_validation_and_reload.py  # Validation tests
-│   ├── test_integration_reload.py     # Hot reload integration
-│   ├── test_hot_reload_e2e.py    # End-to-end hot reload
-│   └── test_integration_m1.py    # Integration tests
-├── config/                       # Configuration files
-│   ├── .mcp.json.example         # MCP servers config example
-│   └── .mcp-gateway-rules.json.example  # Gateway rules example
-├── .mcp.json                     # MCP servers config (user-created)
-├── .mcp-gateway-rules.json       # Gateway rules (user-created)
-├── docs/                         # Documentation
-│   └── specs/                    # Specifications
-│       ├── PRD.md                # Product requirements
-│       ├── m0-foundation.md      # M0 spec
-│       ├── m1-core.md            # M1 spec
-│       ├── m2-production.md      # M2 spec (planned)
-│       └── m3-dx.md              # M3 spec (planned)
-├── logs/                         # Audit logs (auto-created)
+├── config/                       # Configuration examples
+├── docs/                         # Documentation and specifications
 ├── main.py                       # Entry point
-├── pyproject.toml                # Python dependencies
-└── README.md                     # This file
+└── pyproject.toml                # Python dependencies
 ```
 
 ### Adding a New Feature

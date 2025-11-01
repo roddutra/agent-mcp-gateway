@@ -59,6 +59,7 @@ Agent → Gateway (3 tools, ~400 tokens) → Policy Engine → Downstream MCP Se
 
 1. **Gateway Server** (FastMCP-based)
    - Exposes 3 gateway tools: `list_servers`, `get_server_tools`, `execute_tool`
+   - Exposes 1 diagnostic tool (debug mode only): `get_gateway_status`
    - All tools accept optional `agent_id` parameter with configurable fallback
    - Built using `FastMCP.as_proxy()` for automatic downstream server proxying
 
@@ -256,8 +257,25 @@ async def list_servers(agent_id: str, ctx: Context) -> list[dict]:
 GATEWAY_MCP_CONFIG=.mcp.json               # MCP server definitions (default: .mcp.json, fallback: ./config/.mcp.json)
 GATEWAY_RULES=.mcp-gateway-rules.json      # Agent policies (default: .mcp-gateway-rules.json, fallback: ./config/.mcp-gateway-rules.json)
 GATEWAY_DEFAULT_AGENT=developer            # Default agent when agent_id not provided (optional, IMPLEMENTED)
+GATEWAY_DEBUG=true                         # Enable debug mode for get_gateway_status tool (default: false)
 GATEWAY_TRANSPORT=stdio                    # stdio|http
 GATEWAY_INIT_STRATEGY=eager                # eager|lazy
+```
+
+### Debug Mode
+
+**`GATEWAY_DEBUG`** - When set to `true`, enables the `get_gateway_status` diagnostic tool. This tool provides visibility into gateway internals including hot reload status, policy configuration, and available servers.
+
+**Security Note:** Debug mode should be disabled in production environments where agents should not inspect gateway internals. When disabled (default), the `get_gateway_status` tool returns an error. See README.md Security Considerations for detailed guidance.
+
+**Usage:**
+```bash
+# Enable debug mode
+export GATEWAY_DEBUG=true
+uv run python main.py
+
+# Or via CLI flag
+uv run python main.py --debug
 ```
 
 **Agent Identity Fallback Chain:**

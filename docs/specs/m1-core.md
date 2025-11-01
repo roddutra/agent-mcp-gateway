@@ -640,6 +640,7 @@ class MetricsCollector:
   - [x] Implement `get_gateway_status` tool for health checks
   - [x] Return reload status, policy state, available servers, config paths
   - [x] Enable agents to programmatically check gateway health
+  - [x] **Note:** This tool is only exposed when debug mode is enabled (GATEWAY_DEBUG=true or --debug flag) for security reasons
 
 - [x] Create unit tests
   - [x] tests/test_config_watcher.py (35 tests: file watching, debouncing, callbacks)
