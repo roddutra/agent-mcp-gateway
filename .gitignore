@@ -10,6 +10,7 @@ wheels/
 .venv
 
 # Configuration files with secrets (use .example files as templates)
+.env
 .mcp.json
 .custom-mcp.json
 config/.mcp.json
@@ -30,6 +31,11 @@ logs/
 htmlcov/
 .pytest_cache/
 *.cover
+
+# Python tool caches
+.mypy_cache/
+.ruff_cache/
+.pytype/
 
 # IDE and editor files
 .vscode/
