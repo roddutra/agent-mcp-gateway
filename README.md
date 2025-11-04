@@ -1,6 +1,6 @@
 # Agent MCP Gateway
 
-An MCP gateway that aggregates multiple MCP servers and provides policy-based access control for agents and subagents. Solves Claude Code's MCP context window waste by enabling on-demand tool discovery instead of loading all tool definitions upfront.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) gateway that aggregates multiple MCP servers and provides policy-based access control for agents and subagents. Solves Claude Code's MCP context window waste by enabling on-demand tool discovery instead of loading all tool definitions upfront.
 
 ## Status
 
@@ -11,26 +11,24 @@ An MCP gateway that aggregates multiple MCP servers and provides policy-based ac
 
 **Current Version:** M1-Core Complete (with OAuth)
 
----
-
 ## Table of Contents
 
 - [Overview](#overview)
 - [Quick Start](#quick-start)
-- [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Gateway Tools](#gateway-tools)
 - [Security Considerations](#security-considerations)
-- [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway)
+- [Troubleshooting](#troubleshooting)
 - [Testing](#testing)
 - [Development](#development)
 - [Architecture](#architecture)
 - [Future Features](#future-features)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
-
----
+- [License](#license)
+- [Support](#support)
+- [Acknowledgments](#acknowledgments)
 
 ## Overview
 
@@ -74,15 +72,27 @@ The gateway sits between agents and downstream MCP servers, exposing only 3 ligh
 - ✅ **Thread-Safe Operations** - Safe concurrent access during reloads
 - ✅ **Diagnostic Tools** - Health monitoring via `get_gateway_status` (debug mode only)
 
----
-
 ## Quick Start
+
+### Prerequisites
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
 
 ### 1. Install Dependencies
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd agent-mcp-gateway
+
+# Install dependencies with uv
 uv sync
 ```
+
+This installs:
+- `fastmcp >= 2.13.0.1` - MCP server framework
+- `pytest`, `pytest-cov`, `pytest-asyncio` - Testing tools (dev)
 
 ### 2. Set Up Configuration Files
 
@@ -121,6 +131,29 @@ Replace `/path/to/agent-mcp-gateway` with the actual path to your gateway instal
 
 **Note:** The `--directory` flag tells `uv run` to change to the project directory before running, ensuring it finds `pyproject.toml` and the gateway configuration files.
 
+**Verify Gateway Connection:**
+
+After adding the gateway to your MCP client, verify it's working:
+
+```bash
+# Using MCP Inspector (for testing)
+npx @modelcontextprotocol/inspector uv run python main.py
+# Then call list_servers with agent_id parameter
+
+# Or ask your agent to list available servers
+# Expected response: List of servers from your .mcp.json
+```
+
+Expected startup output:
+```
+Loading MCP server configuration from: .mcp.json
+Loading gateway rules from: .mcp-gateway-rules.json
+Gateway initialized successfully
+  - X MCP server(s) configured
+  - Y agent(s) configured
+  - 3 gateway tools available
+```
+
 ### 4. Development Usage (Optional)
 
 For local development and testing:
@@ -133,35 +166,70 @@ uv run python main.py
 npx @modelcontextprotocol/inspector uv run python main.py
 ```
 
-### 5. Configure Your Agents (Recommended)
+### 5. Configure Your Agents
 
-To enable custom agents or subagents to properly use the gateway with access control, add gateway configuration to their system prompts. See [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway) for a copyable template and instructions.
+The gateway's tool descriptions are self-documenting, but for proper access control you should configure how your agents identify themselves.
 
----
+#### Choose Your Approach
 
-## Installation
+**Approach 1: Single-Agent Mode (Simplest)**
 
-### Prerequisites
+If all your agents should have the same permissions, configure a default agent using either method:
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
-
-### Install Dependencies
-
+**Option A: Environment Variable**
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd agent-mcp-gateway
+# Set in your MCP client configuration
+export GATEWAY_DEFAULT_AGENT=developer
+```
+**Note:** The agent specified (e.g., "developer") must exist in your `.mcp-gateway-rules.json` file with appropriate permissions.
 
-# Install dependencies with uv
-uv sync
+**Option B: "default" Agent in Rules**
+```json
+{
+  "agents": {
+    "default": {
+      "allow": {
+        "servers": ["*"]
+      }
+    }
+  },
+  "defaults": {
+    "deny_on_missing_agent": false
+  }
+}
+```
+**Note:** Allowing all servers (`"servers": ["*"]`) without specifying tool restrictions grants access to all tools on all servers.
+
+With either approach, agents can omit `agent_id` in tool calls - the gateway uses your configured default agent automatically.
+
+**Approach 2: Multi-Agent Mode (Recommended for Access Control)**
+
+For different agents with different permissions, configure each agent to pass its identity.
+
+**Add this to your agent's system prompt** (e.g., `CLAUDE.md`, `.claude/agents/agent-name.md`):
+
+```markdown
+## MCP Gateway Access
+
+**Available Tools (via agent-mcp-gateway):**
+
+You have access to MCP servers through the agent-mcp-gateway. The specific servers and tools available to you are determined by the gateway's access control rules.
+
+**Tool Discovery Process:**
+
+When you need to use tools from downstream MCP servers:
+1. Use `agent_id: "YOUR_AGENT_NAME"` in ALL gateway tool calls for proper access control
+2. Call `list_servers` to discover which servers you have access to
+3. Call `get_server_tools` with the specific server name to discover available tools
+4. Use `execute_tool` to invoke tools with appropriate parameters
+5. If you cannot access a tool you need, immediately notify the user
+
+**Important:** Always include `agent_id: "YOUR_AGENT_NAME"` in your gateway tool calls. This ensures proper access control and audit logging.
 ```
 
-This installs:
-- `fastmcp >= 2.13.0.1` - MCP server framework
-- `pytest`, `pytest-cov`, `pytest-asyncio` - Testing tools (dev)
+Replace `YOUR_AGENT_NAME` with your agent's identifier (e.g., "researcher", "backend", "admin").
 
----
+**Examples:** See [`.claude/agents/researcher.md`](.claude/agents/researcher.md) and [`.claude/agents/mcp-developer.md`](.claude/agents/mcp-developer.md) for complete configuration examples.
 
 ## Configuration
 
@@ -329,99 +397,21 @@ uv run python main.py
 
 ### 3. OAuth Support for Downstream Servers
 
-The gateway automatically supports OAuth-protected downstream MCP servers (like Notion MCP, GitHub MCP) through FastMCP's built-in OAuth auto-detection. No special configuration is needed - OAuth is enabled automatically for all HTTP servers.
+OAuth-protected downstream servers (Notion, GitHub) are automatically supported via auto-detection when servers return HTTP 401. The gateway uses FastMCP's OAuth support to handle authentication flows transparently - browser opens once for initial authentication, then tokens are cached for future use. See [OAuth User Guide](docs/oauth-user-guide.md) for detailed setup and troubleshooting.
 
-#### How OAuth Auto-Detection Works
+### 4. Environment Variables Reference
 
-**The MCP protocol uses automatic OAuth discovery** - you don't need to know which servers require OAuth ahead of time. When your gateway connects to a server:
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `GATEWAY_MCP_CONFIG` | Path to MCP servers configuration file | `.mcp.json`, fallback: `./config/.mcp.json` | `export GATEWAY_MCP_CONFIG=./custom.json` |
+| `GATEWAY_RULES` | Path to gateway rules configuration file | `.mcp-gateway-rules.json`, fallback: `./config/.mcp-gateway-rules.json` | `export GATEWAY_RULES=~/.claude/rules.json` |
+| `GATEWAY_DEFAULT_AGENT` | Default agent identity when `agent_id` not provided (optional) | None | `export GATEWAY_DEFAULT_AGENT=developer` |
+| `GATEWAY_DEBUG` | Enable debug mode to expose `get_gateway_status` tool | `false` | `export GATEWAY_DEBUG=true` |
+| `GATEWAY_AUDIT_LOG` | Path to audit log file | `./logs/audit.jsonl` | `export GATEWAY_AUDIT_LOG=./audit.jsonl` |
+| `GATEWAY_TRANSPORT` | Transport protocol (stdio or http) | `stdio` | `export GATEWAY_TRANSPORT=stdio` |
+| `GATEWAY_INIT_STRATEGY` | Initialization strategy (eager or lazy) | `eager` | `export GATEWAY_INIT_STRATEGY=eager` |
 
-- **No OAuth needed?** → Server responds with 200 OK, gateway connects normally
-- **OAuth needed?** → Server responds with 401 Unauthorized, triggering automatic OAuth flow
-
-The gateway enables OAuth for all HTTP clients, but it only activates when a server returns HTTP 401 with OAuth metadata.
-
-#### Configuring OAuth-Protected Servers
-
-Simply add the server URL to your `.mcp.json` - no explicit OAuth configuration required:
-
-```json
-{
-  "mcpServers": {
-    "notion": {
-      "url": "https://mcp.notion.com/mcp",
-      "transport": "http"
-    },
-    "github": {
-      "url": "https://github-mcp.example.com/mcp",
-      "transport": "http"
-    },
-    "brave-search": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
-      "env": {"BRAVE_API_KEY": "${BRAVE_API_KEY}"}
-    }
-  }
-}
-```
-
-**What happens when the gateway starts:**
-1. **brave-search (stdio):** No OAuth - uses API key from environment variable
-2. **notion (HTTP):** Server returns 401 → Browser opens for Notion authentication → Tokens cached
-3. **github (HTTP):** Server returns 401 → Browser opens for GitHub authentication → Tokens cached
-
-#### First-Time OAuth Setup
-
-On first connection to an OAuth-protected server:
-
-1. **Gateway detects OAuth requirement** (server returns 401)
-2. **Browser opens automatically** on your machine
-3. **You authenticate** with the OAuth provider (Notion, GitHub, etc.)
-4. **Browser shows "Authentication successful"** and closes
-5. **Tokens are cached** in `~/.fastmcp/oauth-mcp-client-cache/`
-6. **Gateway connects** and all tools become available
-
-#### Subsequent Sessions
-
-After initial authentication:
-- Tokens load from cache automatically
-- No browser windows open
-- No authentication prompts
-- Automatic token refresh when needed
-- Works exactly like non-OAuth servers
-
-**Token storage location:** `~/.fastmcp/oauth-mcp-client-cache/`
-
-#### OAuth Troubleshooting
-
-**Browser doesn't open:**
-- Ensure your system can open browser windows
-- Test: `python -m webbrowser https://example.com`
-- Check gateway has permissions to spawn browser process
-
-**"Authentication failed" error:**
-- Verify the server URL in `.mcp.json` is correct
-- Check that the MCP server is running and accessible
-- Try accessing the server URL directly in browser
-
-**Need to re-authenticate:**
-```bash
-# Clear cached tokens
-rm -rf ~/.fastmcp/oauth-mcp-client-cache/
-
-# Restart gateway - browser will open again for authentication
-```
-
-**Headless environments (Docker, CI/CD):**
-OAuth requires browser interaction for initial authentication. For headless environments:
-1. Authenticate on a machine with browser access
-2. Copy cached tokens to headless environment:
-   ```bash
-   scp -r ~/.fastmcp/oauth-mcp-client-cache/ user@server:~/.fastmcp/
-   ```
-
-**For detailed OAuth setup and troubleshooting:** See [`docs/oauth-user-guide.md`](docs/oauth-user-guide.md)
-
----
+**Note on GUI Applications:** macOS GUI applications (Claude Desktop, etc.) run in isolated environments without access to shell environment variables. If using `${VAR_NAME}` syntax in `.mcp.json`, add required API keys to the gateway's `env` object in your MCP client configuration.
 
 ## Usage
 
@@ -457,23 +447,11 @@ claude mcp add agent-mcp-gateway \
 # Use default config paths
 uv run python main.py
 
-# Or specify custom paths via environment
+# Or specify custom paths via environment (see Configuration section for all variables)
 export GATEWAY_MCP_CONFIG=./custom-mcp-config.json
 export GATEWAY_RULES=./custom-gateway-rules.json
-export GATEWAY_AUDIT_LOG=./custom-audit.jsonl
 uv run python main.py
 ```
-
-**Environment Variables:**
-- `GATEWAY_MCP_CONFIG` - Path to MCP servers config (default: checks `.mcp.json` in current directory, then `./config/.mcp.json`)
-- `GATEWAY_RULES` - Path to gateway rules config (default: checks `.mcp-gateway-rules.json` in current directory, then `./config/.mcp-gateway-rules.json`)
-- `GATEWAY_AUDIT_LOG` - Path to audit log file (default: `./logs/audit.jsonl`)
-- `GATEWAY_DEFAULT_AGENT` - Default agent identity when `agent_id` is not provided (optional, see [Agent Identity Fallback](#agent-identity-fallback))
-- `GATEWAY_DEBUG` - Enable debug mode to expose `get_gateway_status` tool (default: false, see [Security Considerations](#security-considerations))
-
-**Note on Configuration Files:**
-- `.mcp.json` follows standard MCP naming conventions and can be checked into version control for team sharing
-- `.mcp-gateway-rules.json` location depends on your security requirements (see [Security Considerations](#security-considerations) below)
 
 ### Startup Output
 
@@ -499,11 +477,9 @@ Agent MCP Gateway initialized successfully
 Gateway is ready. Running with stdio transport...
 ```
 
----
-
 ## Gateway Tools
 
-The gateway exposes exactly 3 tools to agents. All tools accept an optional `agent_id` parameter for access control. When `agent_id` is not provided, the gateway uses a fallback chain to determine agent identity.
+The gateway exposes exactly 3 tools to agents. All tools accept an optional `agent_id` parameter for access control. When `agent_id` is not provided, the gateway uses a fallback chain to determine agent identity (see [Agent Identity Modes](#agent-identity-modes)).
 
 **For Agent Developers:** To configure your agents to properly use these gateway tools with access control, see [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway).
 
@@ -512,7 +488,7 @@ The gateway exposes exactly 3 tools to agents. All tools accept an optional `age
 Lists MCP servers available to the calling agent based on policy rules.
 
 **Parameters:**
-- `agent_id` (string, optional) - Identifier of the agent making the request (see [Agent Identity Fallback](#agent-identity-fallback))
+- `agent_id` (string, optional) - Identifier of the agent making the request (see [Agent Identity Modes](#agent-identity-modes))
 - `include_metadata` (boolean, optional) - Include technical details like transport, command, and url (default: false)
 
 **Returns:**
@@ -568,7 +544,7 @@ result = await client.call_tool("list_servers", {
 Retrieves tool definitions from a specific MCP server, filtered by agent permissions.
 
 **Parameters:**
-- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Fallback](#agent-identity-fallback))
+- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Modes](#agent-identity-modes))
 - `server` (string, required) - Name of the downstream MCP server
 - `names` (string, optional) - Comma-separated list of tool names (e.g., `"tool1,tool2,tool3"`) or single tool name
 - `pattern` (string, optional) - Wildcard pattern for tool names (e.g., `"get_*"`)
@@ -632,7 +608,7 @@ tools = await client.call_tool("get_server_tools", {
 Executes a tool on a downstream MCP server with transparent result forwarding.
 
 **Parameters:**
-- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Fallback](#agent-identity-fallback))
+- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Modes](#agent-identity-modes))
 - `server` (string, required) - Name of the downstream MCP server
 - `tool` (string, required) - Name of the tool to execute
 - `args` (object, required) - Arguments to pass to the tool
@@ -682,7 +658,7 @@ Returns comprehensive gateway health and diagnostics information.
 **Important:** This tool is only available when debug mode is enabled (via `GATEWAY_DEBUG=true` environment variable or `--debug` CLI flag). See [Security Considerations](#security-considerations) for details.
 
 **Parameters:**
-- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Fallback](#agent-identity-fallback))
+- `agent_id` (string, optional) - Identifier of the agent (see [Agent Identity Modes](#agent-identity-modes))
 
 **Returns:**
 ```json
@@ -753,28 +729,59 @@ All tools return structured errors with clear messages:
 - `FALLBACK_AGENT_NOT_IN_RULES` - Configured fallback agent not found in gateway rules
 - `NO_FALLBACK_CONFIGURED` - No agent_id provided and no fallback agent configured
 
-### Agent Identity Fallback
+### Complete Workflow Example
 
-The `agent_id` parameter is optional in all gateway tool calls. When not provided, the gateway uses the following fallback chain to determine agent identity:
+Here's a minimal working example showing the typical gateway workflow:
 
-1. **Environment Variable** (`GATEWAY_DEFAULT_AGENT`) - Highest priority
-2. **"default" Agent in Rules** - Agent named "default" in `.mcp-gateway-rules.json`
-3. **Error** - If neither is configured and `deny_on_missing_agent` is true
+```python
+from fastmcp import Client
 
-**Example with Environment Variable:**
-```bash
-export GATEWAY_DEFAULT_AGENT=developer
-uv run python main.py
+async def gateway_workflow():
+    async with Client('agent-mcp-gateway') as client:
+        # 1. Discover available servers
+        servers = await client.call_tool('list_servers', {
+            'agent_id': 'researcher'
+        })
+        # Response: [{"name": "brave-search", "description": "Web search..."}]
+
+        # 2. Get tools from specific server
+        tools = await client.call_tool('get_server_tools', {
+            'agent_id': 'researcher',
+            'server': 'brave-search'
+        })
+        # Response: {"tools": [...], "server": "brave-search", ...}
+
+        # 3. Execute a tool
+        result = await client.call_tool('execute_tool', {
+            'agent_id': 'researcher',
+            'server': 'brave-search',
+            'tool': 'brave_web_search',
+            'args': {'query': 'MCP protocol documentation'}
+        })
+        # Response: {"content": [...search results...], "isError": false}
 ```
 
-**Example with "default" Agent:**
+This workflow demonstrates on-demand tool discovery - load definitions only when needed, not upfront.
+
+### Agent Identity Modes
+
+The gateway supports two deployment modes for handling agent identity:
+
+#### Single-Agent Mode
+
+Use when all agents should have the same permissions (development, personal use, single-agent deployments):
+
+```bash
+# Set default agent via environment variable
+export GATEWAY_DEFAULT_AGENT=developer
+```
+
+Or define a "default" agent in rules:
 ```json
 {
   "agents": {
     "default": {
-      "deny": {
-        "servers": ["*"]
-      }
+      "allow": {"servers": ["brave-search", "postgres"]}
     }
   },
   "defaults": {
@@ -783,240 +790,107 @@ uv run python main.py
 }
 ```
 
-#### The `deny_on_missing_agent` Setting
+Agents can omit `agent_id` in tool calls - the gateway automatically uses the configured default.
 
-This configuration setting controls whether the gateway uses the fallback chain when `agent_id` is not provided in tool calls:
+#### Multi-Agent Mode
 
-**When `true` (Strict Mode):**
-- The gateway **immediately rejects** any tool call without an `agent_id` parameter
-- The fallback chain is **bypassed entirely**, even if `GATEWAY_DEFAULT_AGENT` or a "default" agent is configured
-- This effectively makes `agent_id` a **required parameter**
-- Use this mode in production multi-agent environments where explicit agent identification is mandatory
+Use when different agents need different permissions (production, multi-agent systems):
 
-**When `false` (Fallback Mode):**
-- The gateway **uses the fallback chain** to resolve agent identity (environment variable → "default" agent → error)
-- Access is **never implicitly granted** - the gateway falls back to the explicitly configured agent's permissions
-- If no fallback is configured, requests are still rejected with a helpful error message
-- Use this mode in single-agent deployments or development environments where convenience is prioritized
-
-**Flexibility:** This setting allows you to configure different behaviors for different projects. For example, you might use `deny_on_missing_agent: false` in development for convenience, but set it to `true` in production for strict access control.
-
-**Important:** The fallback mechanism follows the **principle of least privilege**. Even when `deny_on_missing_agent` is `false`, access is never implicitly granted to all resources. Instead, the gateway falls back to the explicitly configured agent's permissions.
-
-**Special Agent Name:** The name "default" is reserved and automatically used as the final fallback when `deny_on_missing_agent` is `false` and no `GATEWAY_DEFAULT_AGENT` is set.
-
----
-
-## Security Considerations
-
-### Rules File Location for Access Control
-
-The security posture of your gateway configuration depends on how you use it:
-
-#### Context Optimization Only
-If you use the gateway **only for context window optimization** (reducing token usage by loading tools on-demand) and all agents should have similar access, the rules file can safely reside in your project directory:
-```bash
-# In project directory - visible to coding agents
-.mcp-gateway-rules.json
-```
-
-#### Access Control and Security
-If you use the gateway **for actual access control** (restricting which agents can access which servers/tools), storing rules in the project directory creates security risks:
-
-**Security Risks:**
-- Coding agents (like Claude Code) can **read the rules file** and understand the permission structure
-- Agents can **identify other agent identities** with higher privileges and attempt impersonation
-- Agents might **attempt to modify the rules file** to grant themselves additional permissions
-- The permission structure becomes visible to all agents working with the code
-
-**Secure Configuration:**
-Store the rules file **outside the project directory** and reference it via environment variable:
-
-```bash
-# Store rules outside project - not visible to coding agents
-export GATEWAY_RULES=~/.claude/mcp-gateway-rules.json
-
-# Or in a system-wide configuration directory
-export GATEWAY_RULES=/etc/mcp-gateway/rules.json
-```
-
-**Benefits of External Rules Location:**
-- Rules file is **not accessible** to coding agents working in the project
-- Agents **cannot inspect** permission structures or identify privileged agent names
-- Agents **cannot modify** access control rules
-- Reduces attack surface for privilege escalation attempts
-- Separates security policy from project code
-
-**Example Secure Setup:**
-```bash
-# 1. Move rules file to secure location (outside project directory)
-mv .mcp-gateway-rules.json ~/.claude/mcp-gateway-rules.json
-
-# 2. Configure environment variable in your MCP client or shell
-export GATEWAY_RULES=~/.claude/mcp-gateway-rules.json
-
-# 3. Add gateway to your MCP client configuration (see Quick Start for examples)
-```
-
-**Recommendation:** If your gateway rules are used for security-critical access control, always store them outside the project directory. If they're only used for context optimization convenience, in-project storage is acceptable.
-
-### Debug Mode and Gateway Status Tool
-
-The `get_gateway_status` tool provides comprehensive diagnostic information about the gateway's internal state, including:
-- Hot reload status and timestamps
-- PolicyEngine configuration details
-- Available server names
-- Configuration file paths
-
-**Security Consideration:** In production environments, this diagnostic information could help coding agents understand the gateway's permission structure, identify privileged agent names, or map the infrastructure. Therefore, the `get_gateway_status` tool is **only available when debug mode is explicitly enabled**.
-
-#### Enabling Debug Mode
-
-Debug mode can be enabled in two ways:
-
-**Option 1: Environment Variable (Recommended for MCP clients)**
-```bash
-# Enable debug mode via environment variable
-export GATEWAY_DEBUG=true
-
-# Add to your MCP client configuration
+```json
 {
-  "mcpServers": {
-    "agent-mcp-gateway": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
-      "env": {
-        "GATEWAY_DEBUG": "true"
-      }
-    }
+  "agents": {
+    "researcher": {"allow": {"servers": ["brave-search"]}},
+    "backend": {"allow": {"servers": ["postgres"]}}
+  },
+  "defaults": {
+    "deny_on_missing_agent": true  // Require explicit agent_id
   }
 }
 ```
 
-**Option 2: CLI Flag (For direct execution)**
-```bash
-# Run gateway with debug mode
-uv run python main.py --debug
-```
+Configure each agent to pass their identity (see [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway)).
 
-#### When to Enable Debug Mode
+<details>
+<summary><strong>Technical Details: Agent Identity Resolution</strong></summary>
 
-**Enable debug mode when:**
-- Troubleshooting configuration issues
-- Verifying hot reload functionality
-- Debugging policy evaluation
-- Local development and testing
+When `agent_id` is not provided, the gateway uses this fallback chain:
 
-**Disable debug mode when:**
-- Running in production with security-sensitive access control
-- Multiple agents with different privilege levels
-- Rules file location is security-critical
-- Agents should not inspect gateway internals
+1. `GATEWAY_DEFAULT_AGENT` environment variable (highest priority)
+2. Agent named "default" in `.mcp-gateway-rules.json`
+3. Error if neither configured
 
-#### Using get_gateway_status in Debug Mode
+The `deny_on_missing_agent` setting controls this behavior:
+- `true`: Require explicit `agent_id` (bypass fallback chain)
+- `false`: Use fallback chain when `agent_id` omitted
 
-When debug mode is enabled, agents can check gateway health:
+**Security Note:** The fallback mechanism follows the principle of least privilege - it never grants implicit "allow all" access, only the explicitly configured agent's permissions.
 
-```python
-# Check gateway status (only works with GATEWAY_DEBUG=true)
-status = await client.call_tool("get_gateway_status", {
-    "agent_id": "developer"
-})
+</details>
 
-# Response includes:
-# - reload_status: Hot reload timestamps and errors
-# - policy_state: Number of agents and defaults
-# - available_servers: List of server names
-# - config_paths: Configuration file locations
-```
+## Security Considerations
 
-**Note:** When debug mode is disabled (default), calling `get_gateway_status` will return an error indicating that the tool is not available. This prevents agents from accessing diagnostic information in production deployments.
+**Rules File Location:** Store `.mcp-gateway-rules.json` in-project for context optimization only. For production access control, store outside project directory (e.g., `~/.claude/mcp-gateway-rules.json`) to prevent agents from reading/modifying permissions.
 
----
+**Debug Mode:** The `get_gateway_status` tool exposes gateway internals and is only available when `GATEWAY_DEBUG=true`. Disable in production environments.
 
-## Configuring Agents to Use the Gateway
+**For comprehensive security guidance:** See [Security Guide](docs/security-guide.md) for detailed information on rules file security, debug mode considerations, agent impersonation risks, and production best practices.
 
-The gateway's tool descriptions are **self-documenting** - they include workflow instructions and explain that agents are accessing downstream MCP servers through a gateway with policy-based access control. This means agents can understand how to use the gateway based solely on the tool descriptions loaded into their context window.
+## Troubleshooting
 
-### Two Approaches to Agent Configuration
+### Gateway Won't Start
 
-Choose your approach based on whether you want to use default permissions or specific agent rules:
+**Symptom:** Error on startup or gateway fails to initialize
 
-#### Approach 1: Using Default Permissions (Minimal Configuration)
+**Solutions:**
+- **Check configuration files exist:** Verify `.mcp.json` and `.mcp-gateway-rules.json` are in the expected location
+- **Validate JSON syntax:** Use `python -m json.tool < .mcp.json` to check for syntax errors
+- **Check Python version:** Ensure Python 3.12+ is installed (`python --version`)
+- **Verify dependencies:** Run `uv sync` to ensure all packages are installed
 
-**When to use:**
-- You want all agents to have the same permissions
-- You're using Claude Desktop or other MCP clients without custom system prompts
-- You're using the `GATEWAY_DEFAULT_AGENT` environment variable or a "default" agent in rules
+### Can't Connect to Downstream Server
 
-**Configuration required:**
-- Set `GATEWAY_DEFAULT_AGENT` environment variable, OR
-- Define a "default" agent in `.mcp-gateway-rules.json`
+**Symptom:** `SERVER_UNAVAILABLE` error when calling tools
 
-**Agent instructions required:**
-- **None** - The gateway tool descriptions provide everything the agent needs
+**Solutions:**
+- **Verify server configuration:** Check server is properly defined in `.mcp.json`
+- **Test stdio servers:** Ensure command is available (`npx --version`, `uvx --version`)
+- **Check environment variables:** Verify API keys and credentials are set
+- **Test HTTP servers:** Try accessing server URL directly in browser
+- **Review startup logs:** Look for server initialization errors in gateway output
 
-**Usage:**
-Simply nudge or hint to the agent when you want them to use the gateway:
-- "Search the web for recent MCP updates" (agent discovers gateway tools)
-- "Can you check what tools are available?" (agent calls list_servers)
-- "Use the database to query users" (agent discovers postgres tools)
+### Permission Denied Errors
 
-The agent will discover the gateway tools, understand the workflow from the descriptions, and leave `agent_id` empty (which resolves to your default agent).
+**Symptom:** `DENIED_BY_POLICY` when agent tries to use a tool
 
-#### Approach 2: Using Specific Agent Rules (Recommended for Multi-Agent)
+**Solutions:**
+- **Verify agent_id:** Ensure agent is passing correct identity (check audit logs)
+- **Check agent rules:** Confirm agent exists in `.mcp-gateway-rules.json`
+- **Review policy precedence:** Remember deny rules take precedence over allow rules
+- **Test with wildcard:** Try `"tools": {"server-name": ["*"]}` to grant broad access temporarily
+- **Enable debug mode:** Use `GATEWAY_DEBUG=true` and call `get_gateway_status` to inspect policy state
 
-**When to use:**
-- You have different agents with different permissions (e.g., "researcher", "backend", "admin")
-- You want explicit access control per agent
-- You want agents to proactively use their specific permissions
-- You want detailed audit trails by agent identity
+### OAuth Authentication Issues
 
-**Configuration required:**
-- Define specific agent rules in `.mcp-gateway-rules.json`
-- Add the configuration template below to each agent's system prompt
+**Symptom:** Browser doesn't open or OAuth flow fails
 
-**Agent Configuration Template:**
+See detailed troubleshooting in [OAuth User Guide](docs/oauth-user-guide.md).
 
-Copy this template into your agent's system prompt (e.g., `CLAUDE.md`, `.claude/agents/agent-name.md`, etc.) and replace `YOUR_AGENT_NAME` with your agent's identifier:
+Quick fixes:
+- **Clear token cache:** `rm -rf ~/.fastmcp/oauth-mcp-client-cache/`
+- **Test browser:** `python -m webbrowser https://example.com`
+- **Check server URL:** Verify correct OAuth server URL in `.mcp.json`
 
-```markdown
-## MCP Gateway Access
+### Hot Reload Not Working
 
-**Available Tools (via agent-mcp-gateway):**
+**Symptom:** Changes to config files don't take effect
 
-You have access to MCP servers through the agent-mcp-gateway. The specific servers and tools available to you are determined by the gateway's access control rules.
+**Solutions:**
+- **Check file watch:** Ensure config files are in expected locations
+- **Review logs:** Look for reload errors in gateway output
+- **Manual reload:** Send SIGHUP signal or restart gateway
+- **Debug mode:** Use `get_gateway_status` to check last reload timestamps
 
-**Tool Discovery Process:**
-
-When you need to use tools from downstream MCP servers:
-1. Use `agent_id: "YOUR_AGENT_NAME"` in ALL gateway tool calls for proper access control
-2. Call `list_servers` to discover which servers you have access to
-3. Call `get_server_tools` with the specific server name to discover available tools
-4. Use `execute_tool` to invoke tools with appropriate parameters
-5. If you cannot access a tool you need, immediately notify the user
-
-**Important:** Always include `agent_id: "YOUR_AGENT_NAME"` in your gateway tool calls. This ensures proper access control and audit logging.
-```
-
-### Why Use the Template?
-
-Including the template in your agent's system prompt:
-- **Ensures proper access control** by passing the correct `agent_id` parameter
-- **Enables proactive tool usage** - agent knows it has access to specific capabilities
-- **Maintains detailed audit trail** - all operations logged with agent identity
-- **Adapts automatically** - agent discovers available tools dynamically via gateway
-- **Avoids hardcoding** - no need to list all servers/tools in the prompt
-
-**Note:** You can add high-level hints about available capabilities (e.g., "You have access to web search and database tools") to encourage the agent to use the gateway, but avoid listing all tools and their full definitions - this defeats the purpose of on-demand discovery and wastes context window space.
-
-### Examples
-
-For complete agent configuration examples, see:
-- [`.claude/agents/researcher.md`](.claude/agents/researcher.md) - Research specialist with web search access
-- [`.claude/agents/mcp-developer.md`](.claude/agents/mcp-developer.md) - MCP development expert with full access
-
----
+**For additional help:** See [Security Guide](docs/security-guide.md), [OAuth User Guide](docs/oauth-user-guide.md), or open a GitHub issue.
 
 ## Testing
 
@@ -1126,8 +1000,6 @@ asyncio.run(test())
 "
 ```
 
----
-
 ## Development
 
 ### Project Structure
@@ -1173,8 +1045,6 @@ open htmlcov/index.html
 - Write docstrings for all public functions
 - Keep functions focused and testable
 - Add tests for all new functionality
-
----
 
 ## Architecture
 
@@ -1245,8 +1115,6 @@ open htmlcov/index.html
 - **Session isolation**: Automatic per-request
 - **Concurrent requests**: Fully supported
 
----
-
 ## Future Features
 
 ### M2: Production (Planned)
@@ -1299,8 +1167,6 @@ uv run python -m src.cli validate
 docker run -v ./config:/config agent-mcp-gateway
 ```
 
----
-
 ## Documentation
 
 - [Product Requirements Document](docs/specs/PRD.md)
@@ -1310,8 +1176,6 @@ docker run -v ./config:/config agent-mcp-gateway
 - [M1: Success Report](docs/milestones/m1-success-report.md)
 - [FastMCP Implementation Guide](docs/fastmcp-implementation-guide.md)
 - [Claude Code Subagent Limitations](docs/claude-code-subagent-mcp-limitations.md)
-
----
 
 ## Contributing
 
@@ -1324,13 +1188,9 @@ Contributions welcome! Please:
 5. Update documentation as needed
 6. Submit a pull request with clear description
 
----
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
 
 ## Support
 
@@ -1338,8 +1198,6 @@ For issues and questions:
 - GitHub Issues: [Create an issue](link-to-issues)
 - Documentation: [docs/specs/](docs/specs/)
 - MCP Specification: https://modelcontextprotocol.io
-
----
 
 ## Acknowledgments
 
