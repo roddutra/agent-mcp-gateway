@@ -4,10 +4,13 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, Mock
 
-from src.gateway import gateway, initialize_gateway, _execute_tool_impl as execute_tool
+from src.gateway import gateway, initialize_gateway, execute_tool as execute_tool_tool
 from src.policy import PolicyEngine
 from src.proxy import ProxyManager
 from fastmcp.exceptions import ToolError
+
+# Extract the actual function from FastMCP's FunctionTool wrapper
+execute_tool = execute_tool_tool.fn
 
 
 @pytest.fixture

@@ -29,7 +29,7 @@ from src.gateway import (
     initialize_gateway,
     list_servers as list_servers_tool,
     get_server_tools as get_server_tools_tool,
-    _execute_tool_impl
+    execute_tool as execute_tool_tool
 )
 from src.policy import PolicyEngine
 from src.proxy import ProxyManager
@@ -40,7 +40,7 @@ from fastmcp.exceptions import ToolError
 # Extract the actual functions from FastMCP's FunctionTool wrapper
 list_servers = list_servers_tool.fn
 get_server_tools = get_server_tools_tool.fn
-execute_tool = _execute_tool_impl
+execute_tool = execute_tool_tool.fn
 
 
 # ============================================================================

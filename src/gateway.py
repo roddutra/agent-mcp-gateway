@@ -419,7 +419,8 @@ async def get_server_tools(
     }
 
 
-async def _execute_tool_impl(
+@gateway.tool
+async def execute_tool(
     agent_id: Optional[str] = None,
     server: str = "",
     tool: str = "",
@@ -529,10 +530,6 @@ async def _execute_tool_impl(
     except Exception as e:
         # Other errors
         raise ToolError(f"Tool execution failed: {str(e)}")
-
-
-# Register the tool with FastMCP
-execute_tool = gateway.tool(_execute_tool_impl)
 
 
 async def get_gateway_status(agent_id: Optional[str] = None) -> dict:
