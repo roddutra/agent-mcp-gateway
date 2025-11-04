@@ -1,9 +1,9 @@
 [project]
 name = "agent-mcp-gateway"
-version = "0.1.0"
+version = "0.1.1"
 description = "An MCP gateway that aggregates your existing MCP servers and lets you define which servers and individual tools each agent or subagent can access. Solves Claude Code's MCP context window waste where all tool definitions load upfront instead of being discovered when actually needed."
-readme = "README.md"
 license = { text = "MIT" }
+dynamic = ["readme"]
 authors = [{ name = "Rodrigo Franken Dutra" }]
 keywords = [
     "mcp",
@@ -22,7 +22,48 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 requires-python = ">=3.12"
-dependencies = ["fastmcp>=2.13.0.1", "watchdog>=6.0.0"]
+dependencies = ["fastmcp>=2.13.0.1,<3.0", "watchdog>=6.0.0,<7.0"]
+
+[project.scripts]
+agent-mcp-gateway = "src.main:main"
+
+[project.urls]
+Homepage = "https://github.com/roddutra/agent-mcp-gateway"
+Documentation = "https://github.com/roddutra/agent-mcp-gateway#readme"
+Repository = "https://github.com/roddutra/agent-mcp-gateway"
+Issues = "https://github.com/roddutra/agent-mcp-gateway/issues"
+
+[build-system]
+requires = ["hatchling", "hatch-fancy-pypi-readme"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/main.py",
+    "/src",
+    "/config"
+]
 
 [dependency-groups]
 dev = ["pytest>=8.4.2", "pytest-asyncio>=1.2.0", "pytest-cov>=7.0.0"]
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\[!\[([^\]]+)\]\(([^)]+)\)\]\(([^)]+)\)'
+replacement = '![\1](https://raw.githubusercontent.com/roddutra/agent-mcp-gateway/main/\2)'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '!\[([^\]]+)\]\((?!https?://)([^)]+)\)'
+replacement = '![\1](https://raw.githubusercontent.com/roddutra/agent-mcp-gateway/main/\2)'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\[([^\]]+)\]\((?!https?://)([^)#]+)(#[^)]+)?\)'
+replacement = '[\1](https://github.com/roddutra/agent-mcp-gateway/blob/main/\2\3)'
