@@ -903,11 +903,49 @@ status = await client.call_tool("get_gateway_status", {
 
 ## Configuring Agents to Use the Gateway
 
-When creating custom agents or configuring agent system prompts to use the gateway, add the following section to enable proper tool discovery and access control.
+The gateway's tool descriptions are **self-documenting** - they include workflow instructions and explain that agents are accessing downstream MCP servers through a gateway with policy-based access control. This means agents can understand how to use the gateway based solely on the tool descriptions loaded into their context window.
 
-### Agent Configuration Template
+### Two Approaches to Agent Configuration
 
-Copy this template into your agent's system prompt (e.g., `CLAUDE.md`, custom agent configuration, etc.) and replace `YOUR_AGENT_NAME` with your agent's identifier:
+Choose your approach based on whether you want to use default permissions or specific agent rules:
+
+#### Approach 1: Using Default Permissions (Minimal Configuration)
+
+**When to use:**
+- You want all agents to have the same permissions
+- You're using Claude Desktop or other MCP clients without custom system prompts
+- You're using the `GATEWAY_DEFAULT_AGENT` environment variable or a "default" agent in rules
+
+**Configuration required:**
+- Set `GATEWAY_DEFAULT_AGENT` environment variable, OR
+- Define a "default" agent in `.mcp-gateway-rules.json`
+
+**Agent instructions required:**
+- **None** - The gateway tool descriptions provide everything the agent needs
+
+**Usage:**
+Simply nudge or hint to the agent when you want them to use the gateway:
+- "Search the web for recent MCP updates" (agent discovers gateway tools)
+- "Can you check what tools are available?" (agent calls list_servers)
+- "Use the database to query users" (agent discovers postgres tools)
+
+The agent will discover the gateway tools, understand the workflow from the descriptions, and leave `agent_id` empty (which resolves to your default agent).
+
+#### Approach 2: Using Specific Agent Rules (Recommended for Multi-Agent)
+
+**When to use:**
+- You have different agents with different permissions (e.g., "researcher", "backend", "admin")
+- You want explicit access control per agent
+- You want agents to proactively use their specific permissions
+- You want detailed audit trails by agent identity
+
+**Configuration required:**
+- Define specific agent rules in `.mcp-gateway-rules.json`
+- Add the configuration template below to each agent's system prompt
+
+**Agent Configuration Template:**
+
+Copy this template into your agent's system prompt (e.g., `CLAUDE.md`, `.claude/agents/agent-name.md`, etc.) and replace `YOUR_AGENT_NAME` with your agent's identifier:
 
 ```markdown
 ## MCP Gateway Access
@@ -923,25 +961,27 @@ When you need to use tools from downstream MCP servers:
 2. Call `list_servers` to discover which servers you have access to
 3. Call `get_server_tools` with the specific server name to discover available tools
 4. Use `execute_tool` to invoke tools with appropriate parameters
-5. If you cannot access a tool you need, immediately notify the orchestrator to inform the user
+5. If you cannot access a tool you need, immediately notify the user
 
 **Important:** Always include `agent_id: "YOUR_AGENT_NAME"` in your gateway tool calls. This ensures proper access control and audit logging.
 ```
 
-### Why This Approach?
+### Why Use the Template?
 
-This template:
-- **Avoids hardcoding** server/tool lists in agent prompts (keeps prompts lightweight)
-- **Enables dynamic discovery** of available tools based on gateway rules
-- **Ensures proper access control** by requiring `agent_id` in all calls
-- **Maintains audit trail** for security and debugging
-- **Adapts automatically** when gateway rules or servers change
+Including the template in your agent's system prompt:
+- **Ensures proper access control** by passing the correct `agent_id` parameter
+- **Enables proactive tool usage** - agent knows it has access to specific capabilities
+- **Maintains detailed audit trail** - all operations logged with agent identity
+- **Adapts automatically** - agent discovers available tools dynamically via gateway
+- **Avoids hardcoding** - no need to list all servers/tools in the prompt
 
-**Note:** If an agent isn't invoking the gateway when expected, you may add high-level hints about available servers (e.g., "You have access to web search and documentation tools") to nudge the agent toward discovery. However, avoid listing all tools and their full definitions in the agent prompt - this defeats the purpose of on-demand discovery and wastes context window space.
+**Note:** You can add high-level hints about available capabilities (e.g., "You have access to web search and database tools") to encourage the agent to use the gateway, but avoid listing all tools and their full definitions - this defeats the purpose of on-demand discovery and wastes context window space.
 
-For examples of complete agent configurations, see:
-- [`.claude/agents/researcher.md`](.claude/agents/researcher.md) - Research specialist agent
-- [`.claude/agents/mcp-developer.md`](.claude/agents/mcp-developer.md) - MCP development expert agent
+### Examples
+
+For complete agent configuration examples, see:
+- [`.claude/agents/researcher.md`](.claude/agents/researcher.md) - Research specialist with web search access
+- [`.claude/agents/mcp-developer.md`](.claude/agents/mcp-developer.md) - MCP development expert with full access
 
 ---
 

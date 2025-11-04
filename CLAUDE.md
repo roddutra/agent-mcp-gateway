@@ -208,6 +208,20 @@ The gateway supports OAuth-protected downstream MCP servers (Notion, GitHub, etc
 **User Guide:** See `docs/oauth-user-guide.md` for setup and troubleshooting
 **Architecture Details:** See `docs/specs/m1-oauth.md` and `docs/downstream-mcp-oauth-proxying.md`
 
+## Tool Description Standards
+
+Gateway tools must be **self-documenting** - agents in Claude Desktop and similar MCP clients have no custom prompts, only tool descriptions.
+
+**Concise is key:** Default assumption is Claude is already smart. Only add context Claude doesn't have.
+
+**Tool descriptions:**
+- Single sentence, include workflow if relevant
+- No Args/Returns sections (use `Annotated[Type, "description"]` and Pydantic output models instead)
+
+**Parameter descriptions:** 4-7 words, actionable (e.g., "leave empty if not provided to you", "Server name from list_servers")
+
+**Output field descriptions:** 3-6 words, clarify ambiguities (e.g., "less than total_available is normal due to filtering")
+
 ## FastMCP 2.0 Implementation Patterns
 
 ### Creating the Gateway

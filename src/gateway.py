@@ -2,13 +2,55 @@
 
 import asyncio
 import fnmatch
-import re
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
-from fastmcp import FastMCP, Context
+from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from pydantic import BaseModel, Field
 from .policy import PolicyEngine
 from .proxy import ProxyManager
+
+
+# Output schemas for gateway tools
+class ServerInfo(BaseModel):
+    """Server information returned by list_servers."""
+    name: Annotated[str, Field(description="Server name (use in get_server_tools and execute_tool)")]
+    transport: Annotated[str, Field(description="How server communicates: stdio or http")]
+    description: Annotated[Optional[str], Field(description="Server description (only if include_metadata=true)")] = None
+    command: Annotated[Optional[str], Field(description="Command that runs this server (only if include_metadata=true and transport=stdio)")] = None
+    url: Annotated[Optional[str], Field(description="Server endpoint (only if include_metadata=true and transport=http)")] = None
+
+
+class ToolDefinition(BaseModel):
+    """Tool definition from downstream server."""
+    name: Annotated[str, Field(description="Tool name (use in execute_tool)")]
+    description: Annotated[str, Field(description="What this tool does")]
+    inputSchema: Annotated[dict, Field(description="JSON Schema defining required/optional parameters for execute_tool args")]
+
+
+class GetServerToolsResponse(BaseModel):
+    """Response from get_server_tools."""
+    tools: Annotated[list[ToolDefinition], Field(description="Tool definitions you can access")]
+    server: Annotated[str, Field(description="Queried server name")]
+    total_available: Annotated[int, Field(description="Total tools on server (may exceed returned if filtered by permissions/criteria)")]
+    returned: Annotated[int, Field(description="Count of tools returned (less than total_available is normal due to filtering)")]
+    tokens_used: Annotated[Optional[int], Field(description="Tokens used in schemas (if max_schema_tokens was set)")] = None
+    error: Annotated[Optional[str], Field(description="Error message if request failed")] = None
+
+
+class ToolExecutionResponse(BaseModel):
+    """Response from execute_tool."""
+    content: Annotated[list[dict], Field(description="Result from the downstream tool (format varies by tool)")]
+    isError: Annotated[bool, Field(description="True if the downstream tool returned an error")]
+
+
+class GatewayStatusResponse(BaseModel):
+    """Response from get_gateway_status (debug tool)."""
+    reload_status: Annotated[Optional[dict], Field(description="Hot reload history with timestamps and errors")]
+    policy_state: Annotated[dict, Field(description="Policy engine configuration (agent count, defaults)")]
+    available_servers: Annotated[list[str], Field(description="All configured server names")]
+    config_paths: Annotated[dict, Field(description="File paths to gateway configuration")]
+    message: Annotated[str, Field(description="Summary status message")]
 
 
 # Create FastMCP instance
@@ -84,32 +126,10 @@ def _register_debug_tools():
 
 @gateway.tool
 async def list_servers(
-    agent_id: Optional[str] = None,
-    include_metadata: bool = False
+    agent_id: Annotated[Optional[str], "Your agent identifier (leave empty if not provided to you)"] = None,
+    include_metadata: Annotated[bool, "Include server descriptions and transport details"] = False
 ) -> list[dict]:
-    """List all MCP servers available to the calling agent based on policy rules.
-
-    This tool returns a filtered list of MCP servers that the specified agent
-    is allowed to access according to the configured gateway rules. This enables
-    agents to discover available servers without loading all tool definitions upfront.
-
-    Args:
-        agent_id: Identifier of the agent making the request
-        include_metadata: Whether to include extended server metadata (default: False)
-
-    Returns:
-        List of server information dicts with:
-        - name: Server name
-        - transport: "stdio" or "http"
-        - description: Server description (if include_metadata=True)
-
-    Example:
-        >>> await list_servers("researcher")
-        [
-            {"name": "brave-search", "transport": "stdio"},
-            {"name": "filesystem", "transport": "stdio"}
-        ]
-    """
+    """Discover downstream MCP servers available through this gateway. Your access is determined by gateway policy rules. Workflow: 1) Call list_servers to discover servers, 2) Call get_server_tools to see available tools, 3) Call execute_tool to use them."""
     # Defensive check (middleware should have resolved agent_id)
     if agent_id is None:
         raise ToolError("Internal error: agent_id not resolved by middleware")
@@ -142,7 +162,8 @@ async def list_servers(
             # Determine transport type
             transport = "stdio" if "command" in server_config else "http"
 
-            server_info = {
+            # Build ServerInfo object
+            server_info_kwargs = {
                 "name": server_name,
                 "transport": transport
             }
@@ -150,17 +171,17 @@ async def list_servers(
             # Add metadata if requested
             if include_metadata:
                 if "description" in server_config:
-                    server_info["description"] = server_config["description"]
+                    server_info_kwargs["description"] = server_config["description"]
 
                 # Add transport-specific metadata
                 if transport == "stdio":
-                    server_info["command"] = server_config.get("command")
+                    server_info_kwargs["command"] = server_config.get("command")
                 elif transport == "http":
-                    server_info["url"] = server_config.get("url")
+                    server_info_kwargs["url"] = server_config.get("url")
 
-            server_list.append(server_info)
+            server_list.append(ServerInfo(**server_info_kwargs))
 
-    return server_list
+    return [server.model_dump() for server in server_list]
 
 
 def _matches_pattern(tool_name: str, pattern: str) -> bool:
@@ -231,61 +252,13 @@ def _estimate_tool_tokens(tool: Any) -> int:
 
 @gateway.tool
 async def get_server_tools(
-    agent_id: Optional[str] = None,
-    server: str = "",
-    names: Optional[str] = None,
-    pattern: Optional[str] = None,
-    max_schema_tokens: Optional[int] = None
+    agent_id: Annotated[Optional[str], "Your agent identifier (leave empty if not provided to you)"] = None,
+    server: Annotated[str, "Server name from list_servers"] = "",
+    names: Annotated[Optional[str], "Filter: comma-separated tool names"] = None,
+    pattern: Annotated[Optional[str], "Filter: wildcard pattern (e.g., 'get_*')"] = None,
+    max_schema_tokens: Annotated[Optional[int], "Limit total tokens in returned schemas"] = None
 ) -> dict:
-    """Get tool definitions from a server, filtered by agent permissions and optional criteria.
-
-    This tool retrieves available tools from a downstream MCP server, applying
-    policy-based filtering, optional name/pattern filters, and token budget limits.
-    It enables agents to discover specific tools they need without loading all definitions.
-
-    Args:
-        agent_id: Identifier of the agent making the request
-        server: Name of the server to query for tools
-        names: Optional comma-separated list of tool names (e.g., "tool1,tool2,tool3").
-               Leave empty/null for all tools. Single tool name also accepted.
-        pattern: Optional wildcard pattern to match tool names (e.g., "get_*", "*_user")
-        max_schema_tokens: Optional maximum tokens to return in tool schemas
-
-    Returns:
-        Dictionary with:
-        - tools: List of tool definition dicts (name, description, inputSchema)
-        - server: Server name
-        - total_available: Total number of tools on server (before filtering)
-        - returned: Number of tools returned after filtering
-        - tokens_used: Estimated tokens used (if max_schema_tokens specified)
-        - error: Error message if operation failed (e.g., "Access denied", "Server unavailable")
-
-    Examples:
-        >>> # Get all tools matching a pattern
-        >>> await get_server_tools("researcher", "brave-search", pattern="brave_*")
-
-        >>> # Get specific tools by name
-        >>> await get_server_tools("researcher", "brave-search",
-        ...                        names="brave_web_search,brave_local_search")
-        {
-            "tools": [
-                {
-                    "name": "brave_web_search",
-                    "description": "Search the web using Brave",
-                    "inputSchema": {...}
-                },
-                {
-                    "name": "brave_local_search",
-                    "description": "Search local businesses",
-                    "inputSchema": {...}
-                }
-            ],
-            "server": "brave-search",
-            "total_available": 10,
-            "returned": 2,
-            "tokens_used": null
-        }
-    """
+    """Discover tools available on a downstream MCP server accessed through this gateway. Returns only tools you have permission to use (filtered by policy rules). Use the returned tool definitions to call execute_tool."""
     # Defensive check (middleware should have resolved agent_id)
     if agent_id is None:
         raise ToolError("Internal error: agent_id not resolved by middleware")
@@ -311,66 +284,66 @@ async def get_server_tools(
     proxy_manager = _proxy_manager
 
     if not policy_engine:
-        return {
-            "tools": [],
-            "server": server,
-            "total_available": 0,
-            "returned": 0,
-            "tokens_used": None,
-            "error": "PolicyEngine not initialized in gateway state"
-        }
+        return GetServerToolsResponse(
+            tools=[],
+            server=server,
+            total_available=0,
+            returned=0,
+            tokens_used=None,
+            error="PolicyEngine not initialized in gateway state"
+        ).model_dump()
 
     if not proxy_manager:
-        return {
-            "tools": [],
-            "server": server,
-            "total_available": 0,
-            "returned": 0,
-            "tokens_used": None,
-            "error": "ProxyManager not initialized in gateway state"
-        }
+        return GetServerToolsResponse(
+            tools=[],
+            server=server,
+            total_available=0,
+            returned=0,
+            tokens_used=None,
+            error="ProxyManager not initialized in gateway state"
+        ).model_dump()
 
     # Validate agent can access server
     if not policy_engine.can_access_server(agent_id, server):
-        return {
-            "tools": [],
-            "server": server,
-            "total_available": 0,
-            "returned": 0,
-            "tokens_used": None,
-            "error": f"Access denied: Agent '{agent_id}' cannot access server '{server}'"
-        }
+        return GetServerToolsResponse(
+            tools=[],
+            server=server,
+            total_available=0,
+            returned=0,
+            tokens_used=None,
+            error=f"Access denied: Agent '{agent_id}' cannot access server '{server}'"
+        ).model_dump()
 
     # Get tools from downstream server
     try:
         all_tools = await proxy_manager.list_tools(server)
     except KeyError:
-        return {
-            "tools": [],
-            "server": server,
-            "total_available": 0,
-            "returned": 0,
-            "tokens_used": None,
-            "error": f"Server '{server}' not found in configured servers"
-        }
+        return GetServerToolsResponse(
+            tools=[],
+            server=server,
+            total_available=0,
+            returned=0,
+            tokens_used=None,
+            error=f"Server '{server}' not found in configured servers"
+        ).model_dump()
     except RuntimeError as e:
-        return {
-            "tools": [],
-            "server": server,
-            "total_available": 0,
-            "returned": 0,
-            "tokens_used": None,
-            "error": f"Server unavailable: {str(e)}"
-        }
+        return GetServerToolsResponse(
+            tools=[],
+            server=server,
+            total_available=0,
+            returned=0,
+            tokens_used=None,
+            error=f"Server unavailable: {str(e)}"
+        ).model_dump()
     except Exception as e:
-        return {
-            "tools": [],
-            "server": server,
-            "total_available": 0,
-            "returned": 0,
-            "tokens_used": None,
-            "error": f"Failed to retrieve tools: {str(e)}"
-        }
+        return GetServerToolsResponse(
+            tools=[],
+            server=server,
+            total_available=0,
+            returned=0,
+            tokens_used=None,
+            error=f"Failed to retrieve tools: {str(e)}"
+        ).model_dump()
 
     total_available = len(all_tools)
 
@@ -401,73 +374,33 @@ async def get_server_tools(
                 break
             token_count += tool_tokens
 
-        # Convert tool to dictionary format
-        tool_dict = {
-            "name": tool_name,
-            "description": tool.description if hasattr(tool, 'description') and tool.description else "",
-            "inputSchema": tool.inputSchema if hasattr(tool, 'inputSchema') else {}
-        }
+        # Convert tool to ToolDefinition
+        tool_definition = ToolDefinition(
+            name=tool_name,
+            description=tool.description if hasattr(tool, 'description') and tool.description else "",
+            inputSchema=tool.inputSchema if hasattr(tool, 'inputSchema') else {}
+        )
 
-        filtered_tools.append(tool_dict)
+        filtered_tools.append(tool_definition)
 
-    return {
-        "tools": filtered_tools,
-        "server": server,
-        "total_available": total_available,
-        "returned": len(filtered_tools),
-        "tokens_used": token_count if max_schema_tokens is not None else None
-    }
+    return GetServerToolsResponse(
+        tools=filtered_tools,
+        server=server,
+        total_available=total_available,
+        returned=len(filtered_tools),
+        tokens_used=token_count if max_schema_tokens is not None else None
+    ).model_dump()
 
 
 @gateway.tool
 async def execute_tool(
-    agent_id: Optional[str] = None,
-    server: str = "",
-    tool: str = "",
-    args: dict = {},
-    timeout_ms: Optional[int] = None
+    agent_id: Annotated[Optional[str], "Your agent identifier (leave empty if not provided to you)"] = None,
+    server: Annotated[str, "Server name from list_servers"] = "",
+    tool: Annotated[str, "Tool name from get_server_tools"] = "",
+    args: Annotated[dict, "Arguments matching tool's inputSchema"] = {},
+    timeout_ms: Annotated[Optional[int], "Execution timeout in milliseconds"] = None
 ) -> dict:
-    """Execute a tool on a downstream MCP server with policy-based access control.
-
-    This tool proxies tool execution requests to downstream MCP servers after
-    validating that the agent has permission to access both the server and the
-    specific tool. It transparently forwards the result from the downstream server,
-    including any error flags.
-
-    Args:
-        agent_id: Identifier of the agent making the request
-        server: Name of the server where the tool is located
-        tool: Name of the tool to execute
-        args: Arguments to pass to the tool (as dictionary)
-        timeout_ms: Optional timeout in milliseconds for tool execution
-
-    Returns:
-        Dictionary with:
-        - content: List of content blocks from the tool execution
-        - isError: Boolean indicating if the result represents an error
-
-    Raises:
-        ToolError: If access is denied, server is unavailable, timeout occurs,
-                  or tool execution fails
-
-    Example:
-        >>> await execute_tool(
-        ...     "researcher",
-        ...     "brave-search",
-        ...     "brave_web_search",
-        ...     {"query": "MCP protocol"},
-        ...     timeout_ms=5000
-        ... )
-        {
-            "content": [
-                {
-                    "type": "text",
-                    "text": "Search results: ..."
-                }
-            ],
-            "isError": False
-        }
-    """
+    """Execute a tool on a downstream MCP server accessed through this gateway. Gateway validates permissions then forwards your request to the server. Returns the server's response directly."""
     # Defensive check (middleware should have resolved agent_id)
     if agent_id is None:
         raise ToolError("Internal error: agent_id not resolved by middleware")
@@ -498,22 +431,22 @@ async def execute_tool(
         # Handle both ToolResult objects and dict responses
         if hasattr(result, 'content'):
             # ToolResult object
-            return {
-                "content": result.content,
-                "isError": getattr(result, "isError", False)
-            }
+            return ToolExecutionResponse(
+                content=result.content,
+                isError=getattr(result, "isError", False)
+            ).model_dump()
         elif isinstance(result, dict):
             # Already a dict - ensure it has the expected structure
-            return {
-                "content": result.get("content", [{"type": "text", "text": str(result)}]),
-                "isError": result.get("isError", False)
-            }
+            return ToolExecutionResponse(
+                content=result.get("content", [{"type": "text", "text": str(result)}]),
+                isError=result.get("isError", False)
+            ).model_dump()
         else:
             # Wrap other return types
-            return {
-                "content": [{"type": "text", "text": str(result)}],
-                "isError": False
-            }
+            return ToolExecutionResponse(
+                content=[{"type": "text", "text": str(result)}],
+                isError=False
+            ).model_dump()
 
     except asyncio.TimeoutError:
         raise ToolError(f"Tool execution timed out after {timeout_ms}ms")
@@ -532,62 +465,12 @@ async def execute_tool(
         raise ToolError(f"Tool execution failed: {str(e)}")
 
 
-async def get_gateway_status(agent_id: Optional[str] = None) -> dict:
-    """Get comprehensive gateway status and diagnostics.
+async def get_gateway_status(
+    agent_id: Annotated[Optional[str], "Your agent identifier (leave empty if not provided to you)"] = None
+) -> dict:
+    """Get gateway status, configuration state, and hot reload diagnostics.
 
-    NOTE: This function is only exposed as a gateway tool when debug mode is enabled.
-    It remains accessible for testing purposes even when debug mode is disabled.
-
-    This tool provides visibility into gateway health and configuration state,
-    including hot reload status, policy engine state, and available servers.
-    Useful for debugging configuration issues and verifying that config changes
-    have been applied successfully.
-
-    Args:
-        agent_id: Identifier of the calling agent (required for all gateway tools)
-
-    Returns:
-        Dictionary containing:
-        - reload_status: Hot reload attempt/success timestamps, errors, and warnings
-          for both mcp_config and gateway_rules files
-        - policy_state: Current PolicyEngine configuration (agent count, defaults)
-        - available_servers: List of configured MCP server names
-        - config_paths: Paths to configuration files
-        - message: Human-readable status message
-
-    Example:
-        >>> await get_gateway_status("researcher")
-        {
-            "reload_status": {
-                "mcp_config": {
-                    "last_attempt": "2025-01-15T10:30:00",
-                    "last_success": "2025-01-15T10:30:00",
-                    "last_error": None,
-                    "attempt_count": 3,
-                    "success_count": 3
-                },
-                "gateway_rules": {
-                    "last_attempt": "2025-01-15T10:35:00",
-                    "last_success": "2025-01-15T10:35:00",
-                    "last_error": None,
-                    "attempt_count": 2,
-                    "success_count": 2,
-                    "last_warnings": []
-                }
-            },
-            "policy_state": {
-                "total_agents": 3,
-                "agent_ids": ["researcher", "backend", "admin"],
-                "defaults": {"deny_on_missing_agent": True}
-            },
-            "available_servers": ["brave-search", "postgres", "filesystem"],
-            "config_paths": {
-                "mcp_config": "/path/to/.mcp.json",
-                "gateway_rules": "/path/to/.mcp-gateway-rules.json"
-            },
-            "message": "Gateway is operational. Check reload_status for hot reload health."
-        }
-    """
+    NOTE: Only available when debug mode is enabled."""
     # Defensive check (middleware should have resolved agent_id)
     if agent_id is None:
         raise ToolError("Internal error: agent_id not resolved by middleware")
@@ -636,10 +519,10 @@ async def get_gateway_status(agent_id: Optional[str] = None) -> dict:
     except Exception:
         config_paths = {"error": "Failed to retrieve config paths"}
 
-    return {
-        "reload_status": reload_status,
-        "policy_state": policy_state,
-        "available_servers": available_servers,
-        "config_paths": config_paths,
-        "message": "Gateway is operational. Check reload_status for hot reload health."
-    }
+    return GatewayStatusResponse(
+        reload_status=reload_status,
+        policy_state=policy_state,
+        available_servers=available_servers,
+        config_paths=config_paths,
+        message="Gateway is operational. Check reload_status for hot reload health."
+    ).model_dump()
