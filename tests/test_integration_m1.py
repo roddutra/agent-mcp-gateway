@@ -338,7 +338,7 @@ class TestFullWorkflow:
         start_time = time.perf_counter()
 
         # Step 1: List servers
-        servers = await list_servers(agent_id=agent_id)
+        servers = await list_servers(agent_id=agent_id, include_metadata=True)
 
         assert len(servers) == 1
         assert servers[0]["name"] == "brave-search"

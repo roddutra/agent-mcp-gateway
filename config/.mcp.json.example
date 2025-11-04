@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "brave-search": {
+      "description": "Web search via Brave Search API",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-brave-search"],
       "env": {
@@ -8,6 +9,7 @@
       }
     },
     "postgres": {
+      "description": "PostgreSQL database access and query execution",
       "command": "uvx",
       "args": ["mcp-server-postgres"],
       "env": {
@@ -15,10 +17,12 @@
       }
     },
     "filesystem": {
+      "description": "Read and write files in /workspace directory",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
     },
     "notion": {
+      "description": "Access and manage Notion workspaces",
       "url": "https://mcp.notion.com/mcp",
       "transport": "http"
     }

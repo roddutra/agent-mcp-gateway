@@ -15,8 +15,8 @@ from .proxy import ProxyManager
 class ServerInfo(BaseModel):
     """Server information returned by list_servers."""
     name: Annotated[str, Field(description="Server name (use in get_server_tools and execute_tool)")]
-    transport: Annotated[str, Field(description="How server communicates: stdio or http")]
-    description: Annotated[Optional[str], Field(description="Server description (only if include_metadata=true)")] = None
+    description: Annotated[Optional[str], Field(description="What this server provides (from config or null if not configured)")] = None
+    transport: Annotated[Optional[str], Field(description="How server communicates: stdio or http (only if include_metadata=true)")] = None
     command: Annotated[Optional[str], Field(description="Command that runs this server (only if include_metadata=true and transport=stdio)")] = None
     url: Annotated[Optional[str], Field(description="Server endpoint (only if include_metadata=true and transport=http)")] = None
 
@@ -127,7 +127,7 @@ def _register_debug_tools():
 @gateway.tool
 async def list_servers(
     agent_id: Annotated[Optional[str], "Your agent identifier (leave empty if not provided to you)"] = None,
-    include_metadata: Annotated[bool, "Include server descriptions and transport details"] = False
+    include_metadata: Annotated[bool, "Include technical details (transport, command, url)"] = False
 ) -> list[dict]:
     """Discover downstream MCP servers available through this gateway. Your access is determined by gateway policy rules. Workflow: 1) Call list_servers to discover servers, 2) Call get_server_tools to see available tools, 3) Call execute_tool to use them."""
     # Defensive check (middleware should have resolved agent_id)
@@ -162,16 +162,15 @@ async def list_servers(
             # Determine transport type
             transport = "stdio" if "command" in server_config else "http"
 
-            # Build ServerInfo object
+            # Build ServerInfo object - always include name and description
             server_info_kwargs = {
                 "name": server_name,
-                "transport": transport
+                "description": server_config.get("description")  # Include description always (None if not in config)
             }
 
-            # Add metadata if requested
+            # Add technical metadata if requested
             if include_metadata:
-                if "description" in server_config:
-                    server_info_kwargs["description"] = server_config["description"]
+                server_info_kwargs["transport"] = transport
 
                 # Add transport-specific metadata
                 if transport == "stdio":

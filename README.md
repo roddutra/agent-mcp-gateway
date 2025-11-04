@@ -177,6 +177,7 @@ Defines the downstream MCP servers the gateway will proxy to. Uses the standard 
 {
   "mcpServers": {
     "brave-search": {
+      "description": "Web search via Brave Search API",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-brave-search"],
       "env": {
@@ -184,6 +185,7 @@ Defines the downstream MCP servers the gateway will proxy to. Uses the standard 
       }
     },
     "postgres": {
+      "description": "PostgreSQL database access and query execution",
       "command": "uvx",
       "args": ["mcp-server-postgres"],
       "env": {
@@ -191,6 +193,7 @@ Defines the downstream MCP servers the gateway will proxy to. Uses the standard 
       }
     },
     "remote-server": {
+      "description": "Custom remote API integration",
       "url": "https://example.com/mcp",
       "transport": "http",
       "headers": {
@@ -200,6 +203,9 @@ Defines the downstream MCP servers the gateway will proxy to. Uses the standard 
   }
 }
 ```
+
+**Server Descriptions (Recommended):**
+Adding a `description` field to each server helps AI agents understand what each server provides and when to use it. Descriptions are always returned by `list_servers`, enabling agents to make informed decisions about which servers to query for tools. While optional, descriptions significantly improve agent tool discovery and decision-making.
 
 **Supported Transports:**
 - `stdio` - Local servers via npx/uvx (specified with `command` + `args`)
@@ -507,26 +513,53 @@ Lists MCP servers available to the calling agent based on policy rules.
 
 **Parameters:**
 - `agent_id` (string, optional) - Identifier of the agent making the request (see [Agent Identity Fallback](#agent-identity-fallback))
-- `include_metadata` (boolean, optional) - Include extended server metadata (default: false)
+- `include_metadata` (boolean, optional) - Include technical details like transport, command, and url (default: false)
 
 **Returns:**
 ```json
 [
   {
     "name": "brave-search",
-    "transport": "stdio"
+    "description": "Web search via Brave Search API"
   },
   {
     "name": "postgres",
-    "transport": "stdio"
+    "description": "PostgreSQL database access and query execution"
   }
 ]
 ```
 
+**With `include_metadata=true`:**
+```json
+[
+  {
+    "name": "brave-search",
+    "description": "Web search via Brave Search API",
+    "transport": "stdio",
+    "command": "npx"
+  },
+  {
+    "name": "postgres",
+    "description": "PostgreSQL database access and query execution",
+    "transport": "stdio",
+    "command": "uvx"
+  }
+]
+```
+
+**Note:** Server descriptions are always included (when configured in `.mcp.json`) to help agents understand what each server provides. The `include_metadata` flag only controls whether technical details (transport, command, url) are included.
+
 **Example:**
 ```python
+# Basic usage - returns names and descriptions
 result = await client.call_tool("list_servers", {
     "agent_id": "researcher"
+})
+
+# With technical metadata
+result = await client.call_tool("list_servers", {
+    "agent_id": "researcher",
+    "include_metadata": True
 })
 ```
 
