@@ -10,7 +10,7 @@ import threading
 from datetime import datetime
 from typing import Optional
 from src.gateway import gateway, initialize_gateway
-from src.config import load_mcp_config, load_gateway_rules, get_config_path, get_mcp_config_path, get_gateway_rules_path, validate_rules_against_servers, reload_configs
+from src.config import load_mcp_config, load_gateway_rules, get_mcp_config_path, get_gateway_rules_path, validate_rules_against_servers, reload_configs
 from src.policy import PolicyEngine
 from src.audit import AuditLogger
 from src.proxy import ProxyManager
@@ -391,9 +391,10 @@ def main():
             # Log proxy status
             all_servers = _proxy_manager.get_all_servers()
             print(f"  - {len(all_servers)} proxy client(s) initialized", file=sys.stderr)
-            for server in all_servers:
-                status = "ready" if server["status"] == "initialized" else "error"
-                print(f"    * {server['name']}: {status}", file=sys.stderr)
+            for server_name in all_servers:
+                # get_all_servers() returns list of server names (strings), not dicts
+                status = "ready"  # If it's in the list, it was initialized
+                print(f"    * {server_name}: {status}", file=sys.stderr)
         except Exception as e:
             print(f"  - Warning: Proxy initialization encountered errors: {e}", file=sys.stderr)
             print(f"  - Gateway will continue, but downstream tools may be unavailable", file=sys.stderr)

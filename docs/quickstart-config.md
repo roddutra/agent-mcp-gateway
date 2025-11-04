@@ -30,6 +30,9 @@ source .env
 export $(cat .env | xargs)
 ```
 
+**Note for GUI Applications (Claude Desktop, etc.):**
+If using `${VAR_NAME}` syntax in `.mcp.json`, macOS GUI applications don't access shell environment variables. Add API keys to the gateway's `env` object in your MCP client configuration instead. See README.md "Environment Variables" section for details. (Not needed if you hardcode values in `.mcp.json` without `${VAR_NAME}` syntax.)
+
 ## Step 2: Review Configuration Files
 
 ### MCP Servers Configuration

@@ -209,6 +209,27 @@ Defines the downstream MCP servers the gateway will proxy to. Uses the standard 
 - Use `${VAR_NAME}` syntax for environment variable substitution
 - Set variables before running: `export BRAVE_API_KEY=your-key`
 
+**Important - GUI Applications (Claude Desktop, etc.):**
+If you use `${VAR_NAME}` syntax in `.mcp.json`, note that macOS GUI applications run in isolated environments without access to your shell's environment variables. For Claude Desktop and similar apps, add API keys to the gateway's `env` object in your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "agent-mcp-gateway": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
+      "env": {
+        "BRAVE_API_KEY": "your-actual-key-here",
+        "DATABASE_URL": "postgresql://...",
+        "GATEWAY_DEFAULT_AGENT": "claude-desktop"
+      }
+    }
+  }
+}
+```
+
+(If you hardcode values directly in `.mcp.json` without `${VAR_NAME}` syntax, this is not necessary.)
+
 ### 2. Gateway Rules Configuration
 
 **File:** `.mcp-gateway-rules.json` (or `config/.mcp-gateway-rules.json`)
