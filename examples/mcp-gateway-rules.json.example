@@ -1,0 +1,45 @@
+{
+  "agents": {
+    "default": {
+      "deny": {
+        "servers": ["*"]
+      }
+    },
+    "researcher": {
+      "allow": {
+        "servers": ["brave-search"],
+        "tools": {
+          "brave-search": ["*"]
+        }
+      }
+    },
+    "backend": {
+      "allow": {
+        "servers": ["postgres", "filesystem"],
+        "tools": {
+          "postgres": ["query", "list_*"],
+          "filesystem": ["read_*", "list_*"]
+        }
+      },
+      "deny": {
+        "tools": {
+          "postgres": ["drop_*", "delete_*"],
+          "filesystem": ["write_*", "delete_*"]
+        }
+      }
+    },
+    "admin": {
+      "allow": {
+        "servers": ["*"],
+        "tools": {
+          "postgres": ["*"],
+          "filesystem": ["*"],
+          "brave-search": ["*"]
+        }
+      }
+    }
+  },
+  "defaults": {
+    "deny_on_missing_agent": false
+  }
+}
