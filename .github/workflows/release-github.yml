@@ -1,0 +1,53 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract release notes
+        id: extract-release-notes
+        uses: ffurrer2/extract-release-notes@v2
+
+      - name: Get version from tag
+        id: get-version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "v${{ steps.get-version.outputs.version }}" \
+            --notes "$RELEASE_NOTES
+
+          ## Installation
+
+          Install or upgrade using uvx (no installation required):
+          \`\`\`bash
+          uvx agent-mcp-gateway@${{ steps.get-version.outputs.version }} --version
+          \`\`\`
+
+          Or install persistently:
+          \`\`\`bash
+          uv tool install agent-mcp-gateway@${{ steps.get-version.outputs.version }}
+          # Or upgrade existing installation
+          uv tool upgrade agent-mcp-gateway
+          \`\`\`
+
+          📦 PyPI Package: https://pypi.org/project/agent-mcp-gateway/${{ steps.get-version.outputs.version }}/"
+        env:
+          RELEASE_NOTES: ${{ steps.extract-release-notes.outputs.release_notes }}

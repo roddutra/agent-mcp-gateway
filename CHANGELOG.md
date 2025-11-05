@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-11-05
+
+### Added
+- GitHub Actions workflows for automated releases
+- `.github/workflows/publish-pypi.yml` - Automated PyPI publishing using OpenID Connect (OIDC) trusted publishing
+- `.github/workflows/release-github.yml` - Automated GitHub release creation with changelog extraction and installation instructions
+
+### Changed
+- Release process documentation updated with automated workflow instructions
+- Quick reference commands updated to reflect automated release process
+- PyPI publishing now uses trusted publishing (no API tokens required)
+
 ## [0.1.1] - 2025-11-05
 
 ### Fixed
@@ -93,6 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - <50ms list_servers latency (P95)
 - <300ms get_server_tools latency (P95)
 
-[unreleased]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.1...HEAD
+[unreleased]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/roddutra/agent-mcp-gateway/releases/tag/v0.1.0

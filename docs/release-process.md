@@ -4,8 +4,20 @@ This guide documents the complete workflow for version bumping, building, and pu
 
 ## Quick Reference
 
+**Automated (Recommended):**
 ```bash
-# Version bump → Lock → Build → Test → Publish → Tag → Push
+# Version bump → Lock → Commit → Tag → Push (automation handles build + publish + release)
+uv version --bump patch && uv lock && \
+git add pyproject.toml uv.lock CHANGELOG.md && \
+git commit -m "Bump version to $(uv version)" && \
+git push origin main && \
+git tag -a v$(uv version) -m "Release $(uv version)" && \
+git push origin v$(uv version)
+```
+
+**Manual (For testing or troubleshooting):**
+```bash
+# Version bump → Lock → Build → Publish → Tag → Push
 uv version --bump patch && uv lock && rm -rf dist/ && uv build --no-sources && \
 uv publish --token $PYPI_TOKEN && git tag -a v$(uv version) -m "Release $(uv version)" && \
 git push origin --tags
@@ -134,6 +146,10 @@ uvx --index-url https://test.pypi.org/simple/ agent-mcp-gateway@latest --version
 
 ### 7. Publish to PyPI
 
+**Automated (Recommended):** Publishing is handled automatically by GitHub Actions when you push a tag (see Section 11). Skip this step and proceed to creating the git tag.
+
+**Manual (For testing or troubleshooting):**
+
 Publish to production PyPI:
 
 ```bash
@@ -144,12 +160,14 @@ source ~/.zshrc  # or source ~/.bashrc
 uv publish --token $PYPI_TOKEN
 ```
 
-**PyPI Token Setup:**
+**PyPI Token Setup (Manual Only):**
 1. Visit https://pypi.org/manage/account/
 2. Create project-specific token for `agent-mcp-gateway`
 3. Add to shell config: `export PYPI_TOKEN="pypi-..."`
 
 **Security Note:** Use project-specific tokens (not account-wide) to limit damage if compromised.
+
+**Trusted Publishing (Automated):** The GitHub Actions workflow uses OpenID Connect (OIDC) trusted publishing, which requires no API tokens. See Section 11 for setup instructions.
 
 ### 8. Create Git Tag
 
@@ -184,31 +202,146 @@ uv tool install agent-mcp-gateway
 agent-mcp-gateway --version
 ```
 
-### 10. Create GitHub Release (Optional)
+### 10. Create GitHub Release
 
-Create a GitHub Release for better visibility:
+**Automated (Recommended):** GitHub releases are created automatically when you push a tag (see Section 11). The workflow extracts changelog content and adds installation instructions automatically.
+
+**Manual (For testing or troubleshooting):**
+
+Create a GitHub Release manually:
 
 1. Visit: https://github.com/roddutra/agent-mcp-gateway/releases/new
 2. Select tag: `v0.1.1`
-3. Release title: `v0.1.1 - Brief Description`
-4. Description: Copy from `CHANGELOG.md`
+3. Release title: `v0.1.1`
+4. Description: Copy from `CHANGELOG.md` and add installation instructions
 5. Attach dist files (optional):
    - `dist/agent_mcp_gateway-0.1.1.tar.gz`
    - `dist/agent_mcp_gateway-0.1.1-py3-none-any.whl`
 
 **Benefits:**
 - Users see release notes on GitHub
-- Download packages directly from GitHub
+- Installation instructions visible on releases page
 - Better discoverability
+
+### 11. Automated Release via GitHub Actions
+
+The project uses GitHub Actions for automated releases. When you push a version tag, two workflows run automatically:
+
+#### Workflows
+
+**1. PyPI Publishing** (`.github/workflows/publish-pypi.yml`)
+- Triggers on tag push matching `v*.*.*` pattern
+- Builds distributions with `uv build --no-sources`
+- Publishes to PyPI using OpenID Connect (OIDC) trusted publishing
+- No API tokens required
+
+**2. GitHub Release** (`.github/workflows/release-github.yml`)
+- Triggers on tag push matching `v*.*.*` pattern
+- Extracts changelog section from `CHANGELOG.md` for the tagged version
+- Creates GitHub release with:
+  - Changelog content as release notes
+  - Installation instructions (uvx and uv tool install commands)
+  - Link to PyPI package page
+
+#### Using Automated Releases
+
+**Standard Workflow:**
+```bash
+# 1. Bump version and update lockfile
+uv version --bump patch
+uv lock
+
+# 2. Update CHANGELOG.md with release notes for new version
+
+# 3. Commit version changes
+git add pyproject.toml uv.lock CHANGELOG.md
+git commit -m "Bump version to $(uv version)"
+git push origin main
+
+# 4. Create and push tag - this triggers automation
+git tag -a v$(uv version) -m "Release $(uv version)"
+git push origin v$(uv version)
+
+# 5. Monitor workflows at https://github.com/roddutra/agent-mcp-gateway/actions
+```
+
+#### Prerequisites
+
+**PyPI Trusted Publisher Setup (One-time):**
+1. Visit https://pypi.org/manage/project/agent-mcp-gateway/settings/publishing/
+2. Add trusted publisher with these settings:
+   - **Owner:** `roddutra`
+   - **Repository name:** `agent-mcp-gateway`
+   - **Workflow name:** `publish-pypi.yml`
+   - **Environment name:** `pypi`
+
+**GitHub Environment (Optional):**
+- Create a "pypi" environment in repository settings for additional protection
+- No secrets needed (uses OIDC)
+
+#### Monitoring Workflows
+
+After pushing a tag:
+1. Visit https://github.com/roddutra/agent-mcp-gateway/actions
+2. Check "Publish to PyPI" workflow status
+3. Check "Create GitHub Release" workflow status
+4. Both workflows run independently and can succeed/fail separately
+
+#### Troubleshooting
+
+**PyPI Publish Fails:**
+- Verify trusted publisher configured correctly at PyPI
+- Check workflow logs for authentication errors
+- Ensure tag format matches `v*.*.*` (e.g., `v0.1.2`, not `0.1.2`)
+- Verify version in `pyproject.toml` matches tag
+
+**GitHub Release Fails:**
+- Check that `CHANGELOG.md` has a section for the version being released
+- Verify tag exists: `git tag -l`
+- Check workflow permissions in repository settings (needs `contents: write`)
+
+**Both Workflows Fail:**
+- Verify tag was pushed: `git push origin --tags` or `git push origin v0.1.2`
+- Check Actions tab for detailed error messages
+- Tag format must be `v*.*.*` to trigger workflows
+
+**Rollback:**
+If both workflows fail, delete the tag and retry:
+```bash
+# Delete local and remote tag
+git tag -d v0.1.2
+git push origin :refs/tags/v0.1.2
+
+# Fix issues, then recreate tag
+git tag -a v0.1.2 -m "Release 0.1.2"
+git push origin v0.1.2
+```
+
+#### Testing Workflows
+
+**Test with a pre-release tag:**
+```bash
+# Create test tag
+git tag -a v0.1.2-test -m "Test release automation"
+git push origin v0.1.2-test
+
+# Monitor workflows, verify publish and release creation
+
+# Clean up test artifacts
+gh release delete v0.1.2-test --yes
+git tag -d v0.1.2-test
+git push origin :refs/tags/v0.1.2-test
+```
 
 ## Post-Release Checklist
 
 After release:
 
+- [ ] Both GitHub Actions workflows completed successfully
 - [ ] Package available on PyPI: https://pypi.org/project/agent-mcp-gateway/
-- [ ] Installation verified with `uvx`
-- [ ] Git tag pushed to GitHub
-- [ ] GitHub Release created (optional)
+- [ ] GitHub Release created with changelog: https://github.com/roddutra/agent-mcp-gateway/releases
+- [ ] Installation verified with `uvx agent-mcp-gateway@latest --version`
+- [ ] Git tag visible on GitHub: https://github.com/roddutra/agent-mcp-gateway/tags
 - [ ] Announce release (Twitter, Discord, etc.)
 
 ## Files Modified During Release
@@ -306,31 +439,19 @@ Follow [Semantic Versioning](https://semver.org/):
 - Beta: `0.1.0-beta.1`
 - RC: `0.1.0-rc.1`
 
-## Automation Opportunities
+## Automated Releases
 
-Consider automating releases with GitHub Actions:
+This project uses GitHub Actions for automated releases. See **Section 11: Automated Release via GitHub Actions** for complete details.
 
-```yaml
-# .github/workflows/release.yml
-name: Release
-on:
-  push:
-    tags:
-      - 'v*'
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: astral-sh/setup-uv@v1
-      - run: uv build --no-sources
-      - run: uv publish --token ${{ secrets.PYPI_TOKEN }}
-```
+**Implemented Workflows:**
+- `.github/workflows/publish-pypi.yml` - Automated PyPI publishing with trusted publishing (no tokens)
+- `.github/workflows/release-github.yml` - Automated GitHub release creation with changelog extraction
 
 **Benefits:**
-- Consistent releases
+- Consistent releases across PyPI and GitHub
+- No manual token management (OIDC trusted publishing)
+- Automatic changelog extraction and formatting
 - Reduced manual errors
-- Automatic publishing on git tag push
 
 ## Related Documentation
 
