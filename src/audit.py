@@ -12,7 +12,7 @@ from typing import Any, Callable
 class AuditLogger:
     """Logs gateway operations for security auditing and debugging."""
 
-    def __init__(self, log_path: str = "./logs/audit.jsonl"):
+    def __init__(self, log_path: str = "~/.cache/agent-mcp-gateway/logs/audit.jsonl"):
         """Initialize audit logger with log file path.
 
         Args:

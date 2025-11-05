@@ -342,7 +342,7 @@ def main():
         # Get configuration file paths from environment or use defaults
         _mcp_config_path = get_mcp_config_path()
         _gateway_rules_path = get_gateway_rules_path()
-        audit_log_path = os.environ.get("GATEWAY_AUDIT_LOG", "./logs/audit.jsonl")
+        audit_log_path = os.environ.get("GATEWAY_AUDIT_LOG", "~/.cache/agent-mcp-gateway/logs/audit.jsonl")
 
         # Get default agent ID for fallback chain (optional)
         default_agent_id = os.getenv("GATEWAY_DEFAULT_AGENT")

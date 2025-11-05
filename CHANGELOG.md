@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-11-05
+
+### Fixed
+- Default audit log path now uses user-writable location (`~/.cache/agent-mcp-gateway/logs/audit.jsonl`) instead of relative path (`./logs/audit.jsonl`)
+- Fixes "Read-only file system" error when running via `uvx agent-mcp-gateway` (uvx runs from read-only cache directory)
+- Gateway now works out-of-the-box with uvx without requiring `GATEWAY_AUDIT_LOG` environment variable override
+
 ## [0.1.2] - 2025-11-05
 
 ### Added
@@ -105,7 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - <50ms list_servers latency (P95)
 - <300ms get_server_tools latency (P95)
 
-[unreleased]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.2...HEAD
+[unreleased]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/roddutra/agent-mcp-gateway/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/roddutra/agent-mcp-gateway/releases/tag/v0.1.0

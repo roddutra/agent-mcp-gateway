@@ -287,6 +287,7 @@ async def list_servers(agent_id: str, ctx: Context) -> list[dict]:
 GATEWAY_MCP_CONFIG=.mcp.json               # MCP server definitions (default: .mcp.json, fallback: ./config/.mcp.json)
 GATEWAY_RULES=.mcp-gateway-rules.json      # Agent policies (default: .mcp-gateway-rules.json, fallback: ./config/.mcp-gateway-rules.json)
 GATEWAY_DEFAULT_AGENT=developer            # Default agent when agent_id not provided (optional, IMPLEMENTED)
+GATEWAY_AUDIT_LOG=~/.cache/agent-mcp-gateway/logs/audit.jsonl  # Audit log path (default: ~/.cache/agent-mcp-gateway/logs/audit.jsonl)
 GATEWAY_DEBUG=true                         # Enable debug mode for get_gateway_status tool (default: false)
 GATEWAY_TRANSPORT=stdio                    # stdio|http
 GATEWAY_INIT_STRATEGY=eager                # eager|lazy

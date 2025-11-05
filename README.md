@@ -530,7 +530,7 @@ OAuth-protected downstream servers (Notion, GitHub) are automatically supported 
 | `GATEWAY_RULES` | Path to gateway rules configuration file | `.mcp-gateway-rules.json`, fallback: `./config/.mcp-gateway-rules.json` | `export GATEWAY_RULES=~/.claude/rules.json` |
 | `GATEWAY_DEFAULT_AGENT` | Default agent identity when `agent_id` not provided (optional) | None | `export GATEWAY_DEFAULT_AGENT=developer` |
 | `GATEWAY_DEBUG` | Enable debug mode to expose `get_gateway_status` tool | `false` | `export GATEWAY_DEBUG=true` |
-| `GATEWAY_AUDIT_LOG` | Path to audit log file | `./logs/audit.jsonl` | `export GATEWAY_AUDIT_LOG=./audit.jsonl` |
+| `GATEWAY_AUDIT_LOG` | Path to audit log file | `~/.cache/agent-mcp-gateway/logs/audit.jsonl` | `export GATEWAY_AUDIT_LOG=./audit.jsonl` |
 | `GATEWAY_TRANSPORT` | Transport protocol (stdio or http) | `stdio` | `export GATEWAY_TRANSPORT=stdio` |
 | `GATEWAY_INIT_STRATEGY` | Initialization strategy (eager or lazy) | `eager` | `export GATEWAY_INIT_STRATEGY=eager` |
 
@@ -581,7 +581,7 @@ uv run python main.py
 ```
 Loading MCP server configuration from: .mcp.json
 Loading gateway rules from: .mcp-gateway-rules.json
-Audit log will be written to: ./logs/audit.jsonl
+Audit log will be written to: ~/.cache/agent-mcp-gateway/logs/audit.jsonl
 
 Initializing proxy connections to downstream servers...
   - 2 proxy client(s) initialized
@@ -1039,9 +1039,51 @@ The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is an int
 
 #### Install and Run
 
+**For PyPI Installation (uvx):**
+
 ```bash
-# Run Inspector with the gateway (no installation needed)
+# Run Inspector with gateway from PyPI
+# With environment variables for custom config paths
+GATEWAY_MCP_CONFIG=~/.config/agent-mcp-gateway/mcp.json \
+GATEWAY_RULES=~/.config/agent-mcp-gateway/mcp-gateway-rules.json \
+GATEWAY_DEFAULT_AGENT=researcher \
+npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
+
+# Or with default config paths (searches current directory and fallback locations)
+npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
+
+# With debug mode enabled
+GATEWAY_DEBUG=true npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
+```
+
+**For PyPI Installation (uv tool):**
+
+```bash
+# Run Inspector with installed gateway
+GATEWAY_MCP_CONFIG=~/.config/agent-mcp-gateway/mcp.json \
+GATEWAY_RULES=~/.config/agent-mcp-gateway/mcp-gateway-rules.json \
+GATEWAY_DEFAULT_AGENT=researcher \
+npx @modelcontextprotocol/inspector agent-mcp-gateway
+
+# Or with default config paths
+npx @modelcontextprotocol/inspector agent-mcp-gateway
+```
+
+**For Local Development:**
+
+```bash
+# Run Inspector with local gateway project
+# Environment variables are optional - defaults to .mcp.json and .mcp-gateway-rules.json in project directory
+GATEWAY_MCP_CONFIG=.mcp.json \
+GATEWAY_RULES=.mcp-gateway-rules.json \
+GATEWAY_DEFAULT_AGENT=researcher \
 npx @modelcontextprotocol/inspector uv run python main.py
+
+# Or with default config paths
+npx @modelcontextprotocol/inspector uv run python main.py
+
+# With debug mode to test get_gateway_status tool
+npx @modelcontextprotocol/inspector uv run python main.py --debug
 ```
 
 This opens a web interface where you can:
