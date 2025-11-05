@@ -429,9 +429,29 @@ async def execute_tool(
         # 4. Return result transparently
         # Handle both ToolResult objects and dict responses
         if hasattr(result, 'content'):
-            # ToolResult object
+            # ToolResult object - serialize content items if they're Pydantic models
+            content = result.content
+
+            # Convert Pydantic models to dicts
+            if isinstance(content, list):
+                serialized_content = []
+                for item in content:
+                    if hasattr(item, 'model_dump'):
+                        # Pydantic v2
+                        serialized_content.append(item.model_dump())
+                    elif hasattr(item, 'dict'):
+                        # Pydantic v1
+                        serialized_content.append(item.dict())
+                    elif isinstance(item, dict):
+                        # Already a dict
+                        serialized_content.append(item)
+                    else:
+                        # Fallback: convert to text content
+                        serialized_content.append({"type": "text", "text": str(item)})
+                content = serialized_content
+
             return ToolExecutionResponse(
-                content=result.content,
+                content=content,
                 isError=getattr(result, "isError", False)
             ).model_dump()
         elif isinstance(result, dict):

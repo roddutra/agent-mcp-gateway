@@ -3,6 +3,7 @@
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, Mock
+from pydantic import BaseModel
 
 from src.gateway import gateway, initialize_gateway, execute_tool as execute_tool_tool
 from src.policy import PolicyEngine
@@ -300,3 +301,44 @@ class TestExecuteTool:
             )
 
         assert "ProxyManager not initialized" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_pydantic_model_serialization(self, mock_policy_engine, mock_proxy_manager):
+        """Test execute_tool properly serializes Pydantic models in content.
+
+        This test ensures that when downstream MCP servers return Pydantic models
+        (like TextContent) in the content array, they are properly serialized to
+        dicts before being returned to the client.
+        """
+        # Create a simple Pydantic model mimicking MCP SDK's TextContent
+        class TextContent(BaseModel):
+            type: str
+            text: str
+
+        # Mock result with Pydantic model objects (not dicts)
+        mock_result = Mock()
+        mock_result.content = [
+            TextContent(type="text", text="First result"),
+            TextContent(type="text", text="Second result")
+        ]
+        mock_result.isError = False
+        mock_proxy_manager.call_tool = AsyncMock(return_value=mock_result)
+
+        initialize_gateway(mock_policy_engine, {}, mock_proxy_manager)
+
+        result = await execute_tool(
+            agent_id="test_agent",
+            server="test_server",
+            tool="test_tool",
+            args={}
+        )
+
+        # Verify result is properly serialized
+        assert len(result["content"]) == 2
+        assert result["content"][0] == {"type": "text", "text": "First result"}
+        assert result["content"][1] == {"type": "text", "text": "Second result"}
+        assert result["isError"] is False
+
+        # Ensure content items are dicts, not Pydantic models
+        assert isinstance(result["content"][0], dict)
+        assert isinstance(result["content"][1], dict)

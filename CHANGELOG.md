@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-11-06
+
+### Fixed
+- Fixed tool execution responses failing when downstream MCP servers return Pydantic model objects in content field
+- Gateway now properly serializes Pydantic models (e.g., TextContent) to dictionaries before validation
+- Added regression test to prevent future serialization issues with Pydantic responses
+
 ## [0.1.3] - 2025-11-05
 
 ### Fixed
