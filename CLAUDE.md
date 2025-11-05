@@ -349,6 +349,8 @@ This prevents agents from inspecting permission structures, identifying privileg
 - `/docs/specs/PRD.md` - Complete product requirements and specifications
 - `/docs/fastmcp-implementation-guide.md` - FastMCP 2.0 patterns and examples
 - `/docs/claude-code-subagent-mcp-limitations.md` - Agent identity workaround details
+- `/docs/pypi-readme-transformation.md` - Build-time README transformation for PyPI compatibility
+- `/docs/release-process.md` - Version bumping, building, and publishing workflow for PyPI releases
 
 ## Design Philosophy
 
