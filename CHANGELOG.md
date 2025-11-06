@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2025-11-06
+
+### Fixed
+- Gateway now respects custom Authorization headers (e.g., GitHub Personal Access Tokens) instead of forcing OAuth for all HTTP servers
+- Fixed "Client.__init__() got an unexpected keyword argument 'headers'" error when using Bearer token authentication
+- HTTP clients with Authorization headers now use `StreamableHttpTransport` to properly pass custom headers to FastMCP
+
+### Added
+- Documentation of OAuth limitations: DCR-only support (no pre-registered OAuth apps)
+- GitHub MCP setup guide with Personal Access Token (PAT) configuration examples
+- OAuth authentication method comparison table (what works vs what doesn't)
+
+### Changed
+- OAuth auto-detection now only activates when no Authorization header is provided
+- Custom authentication headers take precedence over OAuth flow
+
 ## [0.1.4] - 2025-11-06
 
 ### Fixed
