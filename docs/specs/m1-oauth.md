@@ -150,6 +150,23 @@ After implementation:
    - HTTP servers without auth (public APIs)
    - All work simultaneously in same gateway instance
 
+## Limitations Discovered During Implementation
+
+While implementing OAuth support, we discovered that the MCP ecosystem has two OAuth models:
+
+1. **OAuth with Dynamic Client Registration (DCR - RFC 7591)**
+   - Servers: Notion MCP
+   - Status: ✅ Fully supported
+   - How it works: Client auto-registers, no manual OAuth app creation needed
+
+2. **OAuth with Pre-Registered Apps**
+   - Servers: GitHub MCP (OAuth flow)
+   - Status: ❌ Not implemented
+   - Why: Requires users to manually create OAuth apps (client_id/client_secret), adds significant complexity
+   - Alternative: Use Personal Access Token (PAT) with custom headers
+
+The gateway implementation prioritizes simplicity and supports the DCR model (used by Notion and other compliant servers). For servers requiring pre-registered apps like GitHub, users should use Personal Access Tokens instead.
+
 ---
 
 ## Success Criteria

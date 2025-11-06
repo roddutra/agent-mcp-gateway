@@ -319,6 +319,69 @@ The gateway supports multiple authentication methods simultaneously:
 
 ---
 
+## Limitations
+
+### OAuth with Pre-Registered Apps Not Supported
+
+The gateway supports OAuth servers that implement **Dynamic Client Registration (RFC 7591)**. This means the OAuth server automatically registers the gateway as a client without requiring manual app registration.
+
+**Not Supported:** Servers that require pre-registered OAuth apps (where you manually create an OAuth app with client_id/client_secret before connecting).
+
+**Reason:** Supporting pre-registered apps adds significant complexity (secure storage of client secrets, per-server OAuth app management) for what is currently an edge case in the MCP ecosystem.
+
+**Example:** GitHub's OAuth flow requires pre-registered GitHub Apps with client_id and client_secret. The gateway does not support this authentication method.
+
+### GitHub MCP Workaround: Use Personal Access Token
+
+For GitHub MCP, use a Personal Access Token (PAT) instead of OAuth:
+
+**Configuration Example:**
+```json
+{
+  "mcpServers": {
+    "github": {
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_PAT}"
+      }
+    }
+  }
+}
+```
+
+**Steps to Create GitHub PAT:**
+
+1. Go to **GitHub.com** → Settings → Developer settings → Personal access tokens
+2. Click **"Generate new token (classic)"**
+3. Select required scopes (typically: `repo`, `read:org`, `read:user`)
+4. Copy the generated token
+5. Set environment variable: `export GITHUB_PAT=ghp_your_token_here`
+6. Start the gateway - GitHub MCP will use your PAT for authentication
+
+### What Works vs What Doesn't
+
+| Authentication Method | Support Status | Example |
+|----------------------|----------------|---------|
+| OAuth with DCR (RFC 7591) | ✅ Supported | Notion MCP |
+| Personal Access Tokens (PAT) | ✅ Supported | GitHub MCP with PAT |
+| API Keys (stdio servers) | ✅ Supported | brave-search with env var |
+| OAuth with pre-registered apps | ❌ Not Supported | GitHub OAuth flow |
+| Custom OAuth providers without DCR | ❌ Not Supported | Providers requiring manual app registration |
+
+### Why These Limitations?
+
+**Dynamic Client Registration (DCR)** allows the gateway to automatically register as an OAuth client with the authorization server at runtime. This provides a seamless user experience - no manual OAuth app creation needed.
+
+**Pre-registered apps** require:
+- Manual OAuth app creation on each provider
+- Secure storage of client_id and client_secret
+- Per-server OAuth configuration management
+- Increased complexity for minimal benefit
+
+**Trade-off:** The gateway prioritizes simplicity and automatic OAuth discovery (via DCR) over supporting pre-registered app flows. For servers requiring pre-registered apps (like GitHub), users can use Personal Access Tokens as a simpler alternative.
+
+---
+
 ## Troubleshooting
 
 ### Browser Doesn't Open

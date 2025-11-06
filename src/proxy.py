@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from fastmcp.client import Client
+from fastmcp.client.transports import StreamableHttpTransport
 
 
 logger = logging.getLogger(__name__)
@@ -159,26 +160,27 @@ class ProxyManager:
                     f'Server "{server_name}": "headers" must be a dict'
                 )
 
-            logger.info(
-                f"Creating HTTP Client with OAuth support for {server_name}: url={url}"
+            # Check if Authorization header is provided (PAT or other auth)
+            has_auth_header = headers and any(
+                k.lower() == "authorization" for k in headers.keys()
             )
 
-            # Create HTTP client with OAuth enabled
-            # OAuth is auto-detected by the MCP protocol - servers that don't
-            # require OAuth will return 200, servers that do will return 401
-
-            # Note: Custom headers are not supported when using OAuth auto-detection
-            # If custom headers are needed, they should be handled at the application level
-            # For now, we prioritize OAuth support over custom headers
-            if headers:
-                logger.warning(
-                    f"Server {server_name} has custom headers configured. "
-                    "Custom headers may conflict with OAuth authentication. "
-                    "If OAuth is required, consider removing custom headers."
+            if has_auth_header:
+                # User provided explicit auth - respect it, don't enable OAuth
+                # Use StreamableHttpTransport to pass custom headers
+                logger.info(
+                    f"Creating HTTP Client with custom authentication for {server_name}: "
+                    f"url={url}"
                 )
-
-            # Pass URL directly (not as MCPConfig) to enable auth parameter
-            return Client(url, auth="oauth")
+                transport = StreamableHttpTransport(url, headers=headers)
+                return Client(transport)
+            else:
+                # No auth provided - enable OAuth auto-detection (for Notion, etc.)
+                logger.info(
+                    f"Creating HTTP Client with OAuth support for {server_name}: "
+                    f"url={url}"
+                )
+                return Client(url, auth="oauth")
 
         # Should never reach here due to earlier validation
         raise ValueError(f'Server "{server_name}" has invalid configuration')

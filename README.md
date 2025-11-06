@@ -522,6 +522,30 @@ uv run python main.py
 
 OAuth-protected downstream servers (Notion, GitHub) are automatically supported via auto-detection when servers return HTTP 401. The gateway uses FastMCP's OAuth support to handle authentication flows transparently - browser opens once for initial authentication, then tokens are cached for future use. See [OAuth User Guide](docs/oauth-user-guide.md) for detailed setup and troubleshooting.
 
+**OAuth Limitations:**
+
+The gateway supports OAuth servers that implement **Dynamic Client Registration (RFC 7591)**.
+
+- ✅ **Supported:** OAuth with auto-detection (e.g., Notion MCP)
+- ❌ **Not Supported:** OAuth with pre-registered apps (e.g., GitHub OAuth flow)
+- 💡 **For GitHub MCP:** Use Personal Access Token instead
+
+**GitHub MCP with PAT Example:**
+```json
+{
+  "mcpServers": {
+    "github": {
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_PAT}"
+      }
+    }
+  }
+}
+```
+
+For detailed OAuth setup and troubleshooting, see [OAuth User Guide](docs/oauth-user-guide.md).
+
 ### 4. Environment Variables Reference
 
 | Variable | Description | Default | Example |
