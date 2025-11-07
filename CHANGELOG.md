@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-11-07
+
+### Changed
+- **BREAKING (behavioral):** Policy engine now implicitly grants all tools when server is allowed without explicit tool rules
+  - `allow.servers` without corresponding `allow.tools.{server}` entry now grants all tools from that server
+  - Explicit `allow.tools.{server}` entries narrow access from implicit grant
+  - `deny.tools.{server}` entries filter tools from granted set
+  - Existing configs with explicit tool grants continue to work unchanged
+- **BREAKING (security):** Fixed policy precedence order - all deny rules now checked before any allow rules
+  - Wildcard deny rules now correctly override explicit allow rules
+  - Fixes security vulnerability where explicit allow could override wildcard deny
+  - Example: With `allow: ["delete_user"]` and `deny: ["delete_*"]`, access is now correctly DENIED
+
+### Migration
+- Review agents with `allow.servers` but no `allow.tools` - these now grant all tools instead of denying by default
+- Configs relying on implicit deny-by-default may now grant unintended access
+- Add explicit `allow.tools.{server}` entries to maintain previous restricted behavior if needed
+- Security audit recommended: ensure wildcard deny patterns are sufficient for production environments
+
+### Added
+- Comprehensive test suite for implicit grant behavior (7 new tests)
+- Server-specific tool rule documentation in README.md
+
 ## [0.1.5] - 2025-11-06
 
 ### Fixed

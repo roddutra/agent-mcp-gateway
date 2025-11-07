@@ -7,10 +7,7 @@
     },
     "researcher": {
       "allow": {
-        "servers": ["brave-search"],
-        "tools": {
-          "brave-search": ["*"]
-        }
+        "servers": ["brave-search"]
       }
     },
     "backend": {
@@ -30,12 +27,7 @@
     },
     "admin": {
       "allow": {
-        "servers": ["*"],
-        "tools": {
-          "postgres": ["*"],
-          "filesystem": ["*"],
-          "brave-search": ["*"]
-        }
+        "servers": ["*"]
       }
     }
   },

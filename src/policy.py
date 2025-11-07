@@ -6,10 +6,11 @@ and supports wildcard pattern matching for flexible rule definitions.
 
 Precedence Order (CRITICAL - DO NOT CHANGE):
 1. Explicit deny rules (specific tool names)
-2. Explicit allow rules (specific tool names)
-3. Wildcard deny rules (patterns like drop_*)
+2. Wildcard deny rules (patterns like drop_*)
+3. Explicit allow rules (specific tool names)
 4. Wildcard allow rules (patterns like get_* or *)
-5. Default policy (from defaults.deny_on_missing_agent)
+5. Implicit grant (if server allowed but no tool rules specified)
+6. Default policy (deny)
 """
 
 import fnmatch
@@ -102,10 +103,11 @@ class PolicyEngine:
 
         Applies deny-before-allow precedence:
         1. Explicit deny rules (specific tool names)
-        2. Explicit allow rules (specific tool names)
-        3. Wildcard deny rules (patterns like drop_*)
+        2. Wildcard deny rules (patterns like drop_*)
+        3. Explicit allow rules (specific tool names)
         4. Wildcard allow rules (patterns like get_* or *)
-        5. Default policy
+        5. Implicit grant (if server allowed but no tool rules specified)
+        6. Default policy (deny)
 
         Args:
             agent_id: Agent identifier
@@ -155,21 +157,25 @@ class PolicyEngine:
             if tool in explicit_deny:
                 return False
 
-            # 2. Explicit allow rules
-            if tool in explicit_allow:
-                return True
-
-            # 3. Wildcard deny rules
+            # 2. Wildcard deny rules
             for pattern in wildcard_deny:
                 if self._matches_pattern(tool, pattern):
                     return False
+
+            # 3. Explicit allow rules
+            if tool in explicit_allow:
+                return True
 
             # 4. Wildcard allow rules
             for pattern in wildcard_allow:
                 if self._matches_pattern(tool, pattern):
                     return True
 
-            # 5. Default policy - if no rules match, deny
+            # 5. Implicit grant - if server allowed but no tool rules specified
+            if not allow_tools:
+                return True
+
+            # 6. Default policy - if no rules match, deny
             return False
 
     def get_allowed_servers(self, agent_id: str) -> list[str]:

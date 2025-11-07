@@ -98,8 +98,8 @@ class TestDenyBeforeAllowPrecedence:
         # Should allow safe_tool (only in allow, not in deny)
         assert engine.can_access_tool("test_agent", "db", "safe_tool") is True
 
-    def test_explicit_allow_overrides_wildcard_deny(self):
-        """Test that explicit allow (level 2) overrides wildcard deny (level 3)."""
+    def test_wildcard_deny_overrides_explicit_allow(self):
+        """Test that wildcard deny (level 2) overrides explicit allow (level 3)."""
         rules = {
             "agents": {
                 "test_agent": {
@@ -117,27 +117,27 @@ class TestDenyBeforeAllowPrecedence:
 
         engine = PolicyEngine(rules)
 
-        # Should ALLOW delete_user (explicit allow wins over wildcard deny)
-        assert engine.can_access_tool("test_agent", "db", "delete_user") is True
+        # Should DENY delete_user (wildcard deny wins over explicit allow)
+        assert engine.can_access_tool("test_agent", "db", "delete_user") is False
 
-        # Should ALLOW delete_data (explicit allow wins over wildcard deny)
-        assert engine.can_access_tool("test_agent", "db", "delete_data") is True
+        # Should DENY delete_data (wildcard deny wins over explicit allow)
+        assert engine.can_access_tool("test_agent", "db", "delete_data") is False
 
-        # Should allow get_user (in allow list, doesn't match deny pattern)
+        # Should ALLOW get_user (in allow list, doesn't match deny pattern)
         assert engine.can_access_tool("test_agent", "db", "get_user") is True
 
         # Should DENY delete_something_else (wildcard deny, not in explicit allow)
         assert engine.can_access_tool("test_agent", "db", "delete_something_else") is False
 
-    def test_wildcard_deny_blocks_tools_not_in_explicit_allow(self):
-        """Test that wildcard deny blocks tools not explicitly allowed."""
-        # This tests that explicit allow > wildcard deny precedence
+    def test_wildcard_deny_blocks_all_matching_tools(self):
+        """Test that wildcard deny blocks all tools matching the pattern."""
+        # This tests that wildcard deny (level 2) overrides explicit allow (level 3)
         rules = {
             "agents": {
                 "test_agent": {
                     "allow": {
                         "servers": ["db"],
-                        "tools": {"db": ["drop_old_data"]}  # Explicit allow for one tool
+                        "tools": {"db": ["drop_old_data", "query"]}  # Explicit allow for tools
                     },
                     "deny": {
                         "tools": {"db": ["drop_*"]}  # Pattern deny
@@ -149,12 +149,15 @@ class TestDenyBeforeAllowPrecedence:
 
         engine = PolicyEngine(rules)
 
-        # Should ALLOW drop_old_data (explicit allow beats wildcard deny)
-        # This is level 2 (explicit allow) vs level 3 (wildcard deny)
-        assert engine.can_access_tool("test_agent", "db", "drop_old_data") is True
+        # Should DENY drop_old_data (wildcard deny beats explicit allow)
+        # This is level 2 (wildcard deny) vs level 3 (explicit allow)
+        assert engine.can_access_tool("test_agent", "db", "drop_old_data") is False
 
         # Should DENY drop_table (matches wildcard deny, not in explicit allow)
         assert engine.can_access_tool("test_agent", "db", "drop_table") is False
+
+        # Should ALLOW query (in explicit allow, doesn't match deny pattern)
+        assert engine.can_access_tool("test_agent", "db", "query") is True
 
     def test_complex_precedence_scenario(self):
         """Test complex scenario with multiple precedence levels."""
@@ -189,6 +192,190 @@ class TestDenyBeforeAllowPrecedence:
         # Denied by pattern
         assert engine.can_access_tool("backend", "postgres", "drop_table") is False
         assert engine.can_access_tool("backend", "postgres", "drop_index") is False
+
+
+class TestImplicitGrant:
+    """Test cases for implicit tool grant behavior."""
+
+    def test_no_tool_rules_defaults_to_implicit_grant(self):
+        """Test that no tool rules means implicit grant of all tools."""
+        rules = {
+            "agents": {
+                "test": {
+                    "allow": {
+                        "servers": ["db"]
+                        # No tools section - should grant all tools implicitly
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        assert engine.can_access_server("test", "db") is True
+        assert engine.can_access_tool("test", "db", "any_tool") is True
+        assert engine.can_access_tool("test", "db", "another_tool") is True
+        assert engine.can_access_tool("test", "db", "query") is True
+
+    def test_explicit_tool_rules_override_implicit_grant(self):
+        """Test that explicit tool rules narrow access from implicit grant."""
+        rules = {
+            "agents": {
+                "test": {
+                    "allow": {
+                        "servers": ["db"],
+                        "tools": {
+                            "db": ["query", "list_tables"]
+                        }
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        assert engine.can_access_server("test", "db") is True
+        assert engine.can_access_tool("test", "db", "query") is True
+        assert engine.can_access_tool("test", "db", "list_tables") is True
+        assert engine.can_access_tool("test", "db", "drop_table") is False  # Not in explicit list
+
+    def test_wildcard_tools_grant_all_explicitly(self):
+        """Test that explicit wildcard ['*'] grants all tools."""
+        rules = {
+            "agents": {
+                "test": {
+                    "allow": {
+                        "servers": ["db"],
+                        "tools": {
+                            "db": ["*"]
+                        }
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        assert engine.can_access_tool("test", "db", "any_tool") is True
+        assert engine.can_access_tool("test", "db", "another_tool") is True
+
+    def test_deny_tools_filters_implicit_grant(self):
+        """Test that deny.tools filters tools from implicit grant."""
+        rules = {
+            "agents": {
+                "test": {
+                    "allow": {
+                        "servers": ["db"]
+                        # No tools - implicit grant all
+                    },
+                    "deny": {
+                        "tools": {
+                            "db": ["drop_*", "delete_*"]
+                        }
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # Should allow most tools (implicit grant)
+        assert engine.can_access_tool("test", "db", "query") is True
+        assert engine.can_access_tool("test", "db", "insert") is True
+        assert engine.can_access_tool("test", "db", "list_tables") is True
+
+        # Should deny dangerous tools
+        assert engine.can_access_tool("test", "db", "drop_table") is False
+        assert engine.can_access_tool("test", "db", "drop_database") is False
+        assert engine.can_access_tool("test", "db", "delete_user") is False
+
+    def test_admin_wildcard_servers_grants_all_tools(self):
+        """Test that admin with servers:['*'] gets all tools from all servers."""
+        rules = {
+            "agents": {
+                "admin": {
+                    "allow": {
+                        "servers": ["*"]
+                        # No tools section - should grant all tools from all servers
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # All servers accessible
+        assert engine.can_access_server("admin", "playwright") is True
+        assert engine.can_access_server("admin", "brave-search") is True
+        assert engine.can_access_server("admin", "github") is True
+
+        # All tools accessible (implicit grant)
+        assert engine.can_access_tool("admin", "playwright", "browser_navigate") is True
+        assert engine.can_access_tool("admin", "brave-search", "brave_web_search") is True
+        assert engine.can_access_tool("admin", "github", "create_issue") is True
+
+    def test_mixed_explicit_and_implicit_tool_grants(self):
+        """Test combination of servers with explicit tool rules and implicit grants."""
+        rules = {
+            "agents": {
+                "test": {
+                    "allow": {
+                        "servers": ["db", "api", "filesystem"],
+                        "tools": {
+                            "db": ["query"],  # Explicit restriction
+                            # "api" has no tools entry - implicit grant all
+                            "filesystem": ["read_*"]  # Explicit restriction
+                        }
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # db: only query allowed
+        assert engine.can_access_tool("test", "db", "query") is True
+        assert engine.can_access_tool("test", "db", "insert") is False
+
+        # api: all tools allowed (implicit)
+        assert engine.can_access_tool("test", "api", "get_data") is True
+        assert engine.can_access_tool("test", "api", "post_data") is True
+        assert engine.can_access_tool("test", "api", "delete_data") is True
+
+        # filesystem: only read_* pattern allowed
+        assert engine.can_access_tool("test", "filesystem", "read_file") is True
+        assert engine.can_access_tool("test", "filesystem", "read_directory") is True
+        assert engine.can_access_tool("test", "filesystem", "write_file") is False
+
+    def test_deny_with_implicit_grant_per_server(self):
+        """Test that deny.tools are server-specific with implicit grant."""
+        rules = {
+            "agents": {
+                "test": {
+                    "allow": {
+                        "servers": ["db1", "db2"]
+                        # No tools - implicit grant for both servers
+                    },
+                    "deny": {
+                        "tools": {
+                            "db1": ["drop_*"]  # Only deny on db1
+                        }
+                    }
+                }
+            }
+        }
+
+        engine = PolicyEngine(rules)
+
+        # db1: implicit grant minus drop_*
+        assert engine.can_access_tool("test", "db1", "query") is True
+        assert engine.can_access_tool("test", "db1", "insert") is True
+        assert engine.can_access_tool("test", "db1", "drop_table") is False  # Denied
+
+        # db2: full implicit grant (no deny rules)
+        assert engine.can_access_tool("test", "db2", "query") is True
+        assert engine.can_access_tool("test", "db2", "insert") is True
+        assert engine.can_access_tool("test", "db2", "drop_table") is True  # Allowed
 
 
 class TestWildcardPatternMatching:
@@ -478,25 +665,6 @@ class TestToolAccess:
         assert engine.can_access_tool("safe", "db", "drop_table") is False
         assert engine.can_access_tool("safe", "db", "delete_all") is False
         assert engine.can_access_tool("safe", "db", "truncate_table") is False
-
-    def test_no_tool_rules_defaults_to_deny(self):
-        """Test that no tool rules means deny access."""
-        rules = {
-            "agents": {
-                "test": {
-                    "allow": {
-                        "servers": ["db"]
-                        # No tools section
-                    }
-                }
-            }
-        }
-
-        engine = PolicyEngine(rules)
-
-        # Has server access but no tool permissions
-        assert engine.can_access_server("test", "db") is True
-        assert engine.can_access_tool("test", "db", "any_tool") is False
 
 
 class TestHelperMethods:

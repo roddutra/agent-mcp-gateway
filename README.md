@@ -481,10 +481,17 @@ Defines per-agent access policies using deny-before-allow precedence:
 
 **Policy Precedence Order:**
 1. Explicit deny rules (highest priority)
-2. Explicit allow rules
-3. Wildcard deny rules
+2. Wildcard deny rules
+3. Explicit allow rules
 4. Wildcard allow rules
-5. Default policy (lowest priority)
+5. Implicit grant (if server allowed but no tool rules specified)
+6. Default policy (deny)
+
+**Implicit Grant Behavior:**
+- If agent has server access and no `allow.tools.{server}` entry, all tools from that server are implicitly granted
+- `allow.tools.{server}` entries narrow access to specified tools only
+- `deny.tools.{server}` entries filter out specific tools (evaluated in steps 1-2)
+- Rules are server-specific and don't affect other servers
 
 **Configuration Flexibility:**
 - Rules can reference servers not currently in `.mcp.json`

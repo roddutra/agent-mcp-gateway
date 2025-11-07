@@ -112,12 +112,20 @@ See `config/*.example` files for complete examples and README.md for detailed co
 
 ### Policy Evaluation Rules (CRITICAL - DO NOT CHANGE)
 
-**Exact precedence order:**
-1. Explicit deny rules
-2. Explicit allow rules
-3. Wildcard deny rules
-4. Wildcard allow rules
-5. Default policy
+**Exact precedence order with short-circuit evaluation:**
+1. Explicit deny rules → if match, DENY and STOP
+2. Wildcard deny rules → if match, DENY and STOP
+3. Explicit allow rules → if match, ALLOW and STOP
+4. Wildcard allow rules → if match, ALLOW and STOP
+5. Implicit grant - if server allowed but no tool rules specified for that server → ALLOW and STOP
+6. Default policy → DENY
+
+**Critical principle:** All deny rules (explicit + wildcard) checked before any allow rules.
+
+**Implicit Grant Behavior:**
+- If agent has server access AND no `allow.tools.{server}` entry → all tools from that server implicitly granted
+- `allow.tools.{server}` entries are server-specific and narrow access for that server only
+- `deny.tools.{server}` entries are server-specific and filter tools for that server only (evaluated in steps 1-2)
 
 ### Agent Identity
 
