@@ -64,7 +64,7 @@ The gateway sits between agents and downstream MCP servers, exposing only 3 ligh
 
 - ✅ **On-Demand Tool Discovery** - Load tool definitions only when needed
 - ✅ **Per-Agent Access Control** - Configure which servers/tools each agent can access
-- ✅ **Easy Agent Integration** - Simple template to add gateway support to any agent ([see guide](#configuring-agents-to-use-the-gateway))
+- ✅ **Easy Agent Integration** - Simple template to add gateway support to any agent ([see guide](#3-configure-your-agents))
 - ✅ **Deny-Before-Allow Policies** - Explicit deny rules take precedence
 - ✅ **Wildcard Support** - Pattern matching for tool names (`get_*`, `*_user`)
 - ✅ **Session Isolation** - Concurrent requests don't interfere
@@ -77,96 +77,44 @@ The gateway sits between agents and downstream MCP servers, exposing only 3 ligh
 
 ## Installation
 
-### For End Users (Recommended)
-
-Install via `uvx` for on-demand usage without persistent installation:
-
 ```bash
-# Run directly without installing
-uvx agent-mcp-gateway --help
-
-# First-time setup - create config directory
+# Creates ~/.config/agent-mcp-gateway/ with template configuration files
 uvx agent-mcp-gateway --init
-
-# Run the gateway (uses configs from ~/.config/agent-mcp-gateway/)
-GATEWAY_MCP_CONFIG=~/.config/agent-mcp-gateway/mcp.json \
-GATEWAY_RULES=~/.config/agent-mcp-gateway/mcp-gateway-rules.json \
-uvx agent-mcp-gateway
 ```
 
-Or install persistently with `uv tool`:
+This generates two template files ready to customize:
+- `mcp.json` - Your downstream MCP servers (Brave, Postgres, etc.)
+- `mcp-gateway-rules.json` - Per-agent access policies (who can use which servers/tools)
 
-```bash
-# Install once
-uv tool install agent-mcp-gateway
-
-# Run anytime
-agent-mcp-gateway --help
-
-# Update to latest version
-uv tool upgrade agent-mcp-gateway
-```
-
-### For Developers
-
-Clone and install in development mode:
-
-```bash
-# Clone repository
-git clone https://github.com/roddutra/agent-mcp-gateway.git
-cd agent-mcp-gateway
-
-# Install dependencies
-uv sync
-
-# Run locally
-uv run python main.py --help
-```
+**For local development:** See [Development](#development) section.
 
 ## Quick Start
 
-**Note:** This guide assumes you've installed the gateway. See [Installation](#installation) above.
+### 1. Configure Gateway Files
 
-### 1. Set Up Configuration Files
-
-The gateway requires two configuration files to operate. Choose your setup method:
-
-**Method A: For PyPI Installation (uvx/uv tool)**
+After running `uvx agent-mcp-gateway --init` (see [Installation](#installation)), edit the generated template files:
 
 ```bash
-# Initialize config directory and create template files
-uvx agent-mcp-gateway --init
-# or
-agent-mcp-gateway --init  # if installed with uv tool
-
-# Edit configs with your servers and rules
+# Define your downstream MCP servers
 nano ~/.config/agent-mcp-gateway/mcp.json
+
+# Define agent access policies
 nano ~/.config/agent-mcp-gateway/mcp-gateway-rules.json
 ```
 
-**Method B: For Local Development**
-
-```bash
-# Copy example files to your project directory
-cp config/.mcp.json.example .mcp.json
-cp config/.mcp-gateway-rules.json.example .mcp-gateway-rules.json
-
-# Edit configs with your servers and rules
-# Note: mcp.json is the standard MCP config format used by Claude Code
-```
-
-See [Configuration File Discovery](#configuration-file-discovery) below for details on where the gateway searches for configuration files.
+See [Configuration](#configuration) section for detailed examples and [Configuration File Discovery](#configuration-file-discovery) for alternative file locations.
 
 ### 2. Add Gateway to Your MCP Client
 
-**For PyPI Installation (uvx):**
+**Claude Code CLI:**
 
 ```bash
-# Claude Code CLI
 claude mcp add agent-mcp-gateway uvx agent-mcp-gateway
+```
 
-# Or manual configuration (Claude Desktop, etc.)
-# Add to your MCP client config:
+**Manual configuration:**
+
+```json
 {
   "mcpServers": {
     "agent-mcp-gateway": {
@@ -182,108 +130,13 @@ claude mcp add agent-mcp-gateway uvx agent-mcp-gateway
 }
 ```
 
-**For PyPI Installation (uv tool):**
-
-```json
-{
-  "mcpServers": {
-    "agent-mcp-gateway": {
-      "command": "agent-mcp-gateway",
-      "env": {
-        "GATEWAY_MCP_CONFIG": "~/.config/agent-mcp-gateway/mcp.json",
-        "GATEWAY_RULES": "~/.config/agent-mcp-gateway/mcp-gateway-rules.json",
-        "GATEWAY_DEFAULT_AGENT": "developer"
-      }
-    }
-  }
-}
-```
-
-**For Local Development:**
-
-```bash
-# Claude Code CLI
-claude mcp add agent-mcp-gateway \
-  uv run --directory /path/to/agent-mcp-gateway python main.py
-
-# Or manual configuration
-{
-  "mcpServers": {
-    "agent-mcp-gateway": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
-      "env": {
-        "GATEWAY_DEFAULT_AGENT": "developer"
-      }
-    }
-  }
-}
-```
-
-Replace `/path/to/agent-mcp-gateway` with the actual path to your gateway clone.
-
-**Note:** For local development, the `--directory` flag tells `uv run` to change to the project directory before running, ensuring it finds `pyproject.toml` and the gateway configuration files.
-
-**Verify Gateway Connection:**
-
-After adding the gateway to your MCP client, verify it's working:
-
-```bash
-# Using MCP Inspector (for testing)
-npx @modelcontextprotocol/inspector uv run python main.py
-# Then call list_servers with agent_id parameter
-
-# Or ask your agent to list available servers
-# Expected response: List of servers from your .mcp.json
-```
-
-Expected startup output:
-```
-Loading MCP server configuration from: .mcp.json
-Loading gateway rules from: .mcp-gateway-rules.json
-Gateway initialized successfully
-  - X MCP server(s) configured
-  - Y agent(s) configured
-  - 3 gateway tools available
-```
+**Note:** The `env` variables are optional if using default config locations. See [Environment Variables Reference](#4-environment-variables-reference) for all options.
 
 ### 3. Configure Your Agents
 
-The gateway's tool descriptions are self-documenting, but for proper access control you should configure how your agents identify themselves.
+The gateway's tool descriptions are self-documenting, but for proper access control you should configure how your agents identify themselves. Choose the approach that fits your use case:
 
-#### Choose Your Approach
-
-**Approach 1: Single-Agent Mode (Simplest)**
-
-If all your agents should have the same permissions, configure a default agent using either method:
-
-**Option A: Environment Variable**
-```bash
-# Set in your MCP client configuration
-export GATEWAY_DEFAULT_AGENT=developer
-```
-**Note:** The agent specified (e.g., "developer") must exist in your `.mcp-gateway-rules.json` file with appropriate permissions.
-
-**Option B: "default" Agent in Rules**
-```json
-{
-  "agents": {
-    "default": {
-      "allow": {
-        "servers": ["*"]
-      }
-    }
-  },
-  "defaults": {
-    "deny_on_missing_agent": false
-  }
-}
-```
-**Note:** Allowing all servers (`"servers": ["*"]`) without specifying tool restrictions grants access to all tools on all servers.
-
-With either approach, agents can omit `agent_id` in tool calls - the gateway uses your configured default agent automatically.
-
-**Approach 2: Multi-Agent Mode (Recommended for Access Control)**
+#### Approach 1: Multi-Agent Mode (Recommended)
 
 For different agents with different permissions, configure each agent to pass its identity.
 
@@ -312,6 +165,36 @@ Replace `YOUR_AGENT_NAME` with your agent's identifier (e.g., "researcher", "bac
 
 **Examples:** See [`.claude/agents/researcher.md`](.claude/agents/researcher.md) and [`.claude/agents/mcp-developer.md`](.claude/agents/mcp-developer.md) for complete configuration examples.
 
+#### Approach 2: Single-Agent Mode
+
+For simpler setups where all agents should have the same permissions, or when using MCP clients without system prompt configuration (e.g., Claude Desktop), configure a default agent using either method:
+
+**Option A: Environment Variable**
+```bash
+# Set in your MCP client configuration
+export GATEWAY_DEFAULT_AGENT=developer
+```
+**Note:** The agent specified (e.g., "developer") must exist in your `.mcp-gateway-rules.json` file with appropriate permissions.
+
+**Option B: "default" Agent in Rules**
+```json
+{
+  "agents": {
+    "default": {
+      "allow": {
+        "servers": ["*"]
+      }
+    }
+  },
+  "defaults": {
+    "deny_on_missing_agent": false
+  }
+}
+```
+**Note:** Allowing all servers (`"servers": ["*"]`) without specifying tool restrictions grants access to all tools on all servers.
+
+With either approach, agents can omit `agent_id` in tool calls - the gateway uses your configured default agent automatically.
+
 ## Command-Line Options
 
 ```bash
@@ -326,14 +209,6 @@ agent-mcp-gateway --debug
 
 # Show help
 agent-mcp-gateway --help
-```
-
-**For local development:**
-```bash
-uv run python main.py --version
-uv run python main.py --init
-uv run python main.py --debug
-uv run python main.py --help
 ```
 
 ## Configuration File Discovery
@@ -413,8 +288,8 @@ If you use `${VAR_NAME}` syntax in `.mcp.json`, note that macOS GUI applications
 {
   "mcpServers": {
     "agent-mcp-gateway": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
+      "command": "uvx",
+      "args": ["agent-mcp-gateway"],
       "env": {
         "BRAVE_API_KEY": "your-actual-key-here",
         "DATABASE_URL": "postgresql://...",
@@ -507,17 +382,16 @@ Defines per-agent access policies using deny-before-allow precedence:
 **Agent Naming:**
 - Use hierarchical names: `team.role` (e.g., `backend.database`, `frontend.ui`)
 - Alphanumeric characters, hyphens, underscores, and dots allowed
-- **Configure your agents** to pass their identity: See [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway)
+- **Configure your agents** to pass their identity: See [Configure Your Agents](#3-configure-your-agents)
 
 ### Configuration Validation
 
-The gateway validates configurations at startup and during hot reload:
+The gateway validates configurations at startup and during hot reload. Example output:
 
-```bash
-uv run python main.py
-# ✓ Configuration loaded from .mcp.json
-# ⚠ Warning: Agent 'researcher' references undefined server 'unknown-server'
-# ℹ These rules will be ignored until the server is added
+```
+✓ Configuration loaded from .mcp.json
+⚠ Warning: Agent 'researcher' references undefined server 'unknown-server'
+ℹ These rules will be ignored until the server is added
 ```
 
 **Validation Behavior:**
@@ -569,43 +443,26 @@ For detailed OAuth setup and troubleshooting, see [OAuth User Guide](docs/oauth-
 
 ## Usage
 
-### Starting the Gateway
+The gateway runs automatically when your MCP client starts. See [Quick Start](#quick-start) for adding it to your MCP client configuration.
 
-**In MCP Clients (Recommended):**
+**Custom configuration paths** can be specified via environment variables in your MCP client config:
 
-Add to your MCP client configuration (e.g., Claude Desktop config):
 ```json
 {
   "mcpServers": {
     "agent-mcp-gateway": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
+      "command": "uvx",
+      "args": ["agent-mcp-gateway"],
       "env": {
-        "GATEWAY_MCP_CONFIG": ".mcp.json",
-        "GATEWAY_RULES": ".mcp-gateway-rules.json"
+        "GATEWAY_MCP_CONFIG": "/path/to/custom-mcp.json",
+        "GATEWAY_RULES": "/path/to/custom-rules.json"
       }
     }
   }
 }
 ```
 
-Or use Claude Code CLI:
-```bash
-claude mcp add agent-mcp-gateway \
-  uv run --directory /path/to/agent-mcp-gateway python main.py
-```
-
-**For Development/Testing:**
-
-```bash
-# Use default config paths
-uv run python main.py
-
-# Or specify custom paths via environment (see Configuration section for all variables)
-export GATEWAY_MCP_CONFIG=./custom-mcp-config.json
-export GATEWAY_RULES=./custom-gateway-rules.json
-uv run python main.py
-```
+See [Environment Variables Reference](#4-environment-variables-reference) for all available options.
 
 ### Startup Output
 
@@ -635,7 +492,7 @@ Gateway is ready. Running with stdio transport...
 
 The gateway exposes exactly 3 tools to agents. All tools accept an optional `agent_id` parameter for access control. When `agent_id` is not provided, the gateway uses a fallback chain to determine agent identity (see [Agent Identity Modes](#agent-identity-modes)).
 
-**For Agent Developers:** To configure your agents to properly use these gateway tools with access control, see [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway).
+**For Agent Developers:** To configure your agents to properly use these gateway tools with access control, see [Configure Your Agents](#3-configure-your-agents).
 
 ### 1. `list_servers`
 
@@ -921,6 +778,24 @@ This workflow demonstrates on-demand tool discovery - load definitions only when
 
 The gateway supports two deployment modes for handling agent identity:
 
+#### Multi-Agent Mode (Recommended)
+
+Use when different agents need different permissions (production, multi-agent systems):
+
+```json
+{
+  "agents": {
+    "researcher": {"allow": {"servers": ["brave-search"]}},
+    "backend": {"allow": {"servers": ["postgres"]}}
+  },
+  "defaults": {
+    "deny_on_missing_agent": true  // Require explicit agent_id
+  }
+}
+```
+
+Configure each agent to pass their identity (see [Configure Your Agents](#3-configure-your-agents)).
+
 #### Single-Agent Mode
 
 Use when all agents should have the same permissions (development, personal use, single-agent deployments):
@@ -945,24 +820,6 @@ Or define a "default" agent in rules:
 ```
 
 Agents can omit `agent_id` in tool calls - the gateway automatically uses the configured default.
-
-#### Multi-Agent Mode
-
-Use when different agents need different permissions (production, multi-agent systems):
-
-```json
-{
-  "agents": {
-    "researcher": {"allow": {"servers": ["brave-search"]}},
-    "backend": {"allow": {"servers": ["postgres"]}}
-  },
-  "defaults": {
-    "deny_on_missing_agent": true  // Require explicit agent_id
-  }
-}
-```
-
-Configure each agent to pass their identity (see [Configuring Agents to Use the Gateway](#configuring-agents-to-use-the-gateway)).
 
 <details>
 <summary><strong>Technical Details: Agent Identity Resolution</strong></summary>
@@ -1048,81 +905,29 @@ Quick fixes:
 
 ## Testing
 
-### Running Tests
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=src --cov-report=term
-
-# Run specific test file
-uv run pytest tests/test_gateway.py -v
-
-# Run integration tests only
-uv run pytest tests/test_integration_m1.py -v
-```
-
 ### Testing with MCP Inspector
 
-The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is an interactive developer tool for testing and debugging MCP servers.
-
-#### Install and Run
-
-**For PyPI Installation (uvx):**
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is an interactive tool for testing MCP servers.
 
 ```bash
-# Run Inspector with gateway from PyPI
-# With environment variables for custom config paths
+# Basic usage
+npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
+
+# With custom config paths
 GATEWAY_MCP_CONFIG=~/.config/agent-mcp-gateway/mcp.json \
 GATEWAY_RULES=~/.config/agent-mcp-gateway/mcp-gateway-rules.json \
 GATEWAY_DEFAULT_AGENT=researcher \
 npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
 
-# Or with default config paths (searches current directory and fallback locations)
-npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
-
-# With debug mode enabled
+# With debug mode
 GATEWAY_DEBUG=true npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
 ```
 
-**For PyPI Installation (uv tool):**
-
-```bash
-# Run Inspector with installed gateway
-GATEWAY_MCP_CONFIG=~/.config/agent-mcp-gateway/mcp.json \
-GATEWAY_RULES=~/.config/agent-mcp-gateway/mcp-gateway-rules.json \
-GATEWAY_DEFAULT_AGENT=researcher \
-npx @modelcontextprotocol/inspector agent-mcp-gateway
-
-# Or with default config paths
-npx @modelcontextprotocol/inspector agent-mcp-gateway
-```
-
-**For Local Development:**
-
-```bash
-# Run Inspector with local gateway project
-# Environment variables are optional - defaults to .mcp.json and .mcp-gateway-rules.json in project directory
-GATEWAY_MCP_CONFIG=.mcp.json \
-GATEWAY_RULES=.mcp-gateway-rules.json \
-GATEWAY_DEFAULT_AGENT=researcher \
-npx @modelcontextprotocol/inspector uv run python main.py
-
-# Or with default config paths
-npx @modelcontextprotocol/inspector uv run python main.py
-
-# With debug mode to test get_gateway_status tool
-npx @modelcontextprotocol/inspector uv run python main.py --debug
-```
-
-This opens a web interface where you can:
-1. Connect to the gateway via stdio transport
-2. View all three gateway tools
-3. Test each tool with custom parameters
-4. Inspect request/response messages
-5. Monitor logs and notifications
+**Inspector features:**
+- View all gateway tools with schemas
+- Test tools with custom inputs
+- Inspect request/response messages
+- Monitor logs and notifications
 
 #### Testing Gateway Tools in Inspector
 
@@ -1159,44 +964,56 @@ Expected: Tool definitions from brave-search server.
 
 Expected: Search results from Brave (if server configured and running).
 
-#### Inspector Features
-
-- **Tools Tab**: View all gateway tools with schemas
-- **Test Execution**: Call tools with custom inputs
-- **Message Pane**: See raw JSON-RPC messages
-- **Logs**: Monitor server logs and notifications
-- **Connection**: Verify gateway startup and initialization
-
-#### Troubleshooting with Inspector
-
-If tools fail:
-1. Check the **Logs pane** for error messages
-2. Verify your `agent_id` exists in `.mcp-gateway-rules.json`
-3. Confirm downstream servers are configured in `.mcp.json`
-4. Check that required environment variables are set
-5. Review the **Message pane** for policy denial reasons
-
-### Manual Testing (without Inspector)
-
-```bash
-# Run the existing integration test
-uv run python test_integration.py
-
-# Or use FastMCP Client directly
-uv run python -c "
-import asyncio
-from fastmcp import Client
-
-async def test():
-    async with Client('main.py') as client:
-        result = await client.call_tool('list_servers', {'agent_id': 'researcher'})
-        print(result)
-
-asyncio.run(test())
-"
-```
+**Troubleshooting:**
+- Check **Logs pane** for errors
+- Verify `agent_id` exists in rules file
+- Confirm downstream servers configured
+- Review **Message pane** for policy denials
 
 ## Development
+
+### Local Installation
+
+Clone and install in development mode:
+
+```bash
+# Clone repository
+git clone https://github.com/roddutra/agent-mcp-gateway.git
+cd agent-mcp-gateway
+
+# Install dependencies
+uv sync
+
+# Create local config files from examples
+cp config/.mcp.json.example .mcp.json
+cp config/.mcp-gateway-rules.json.example .mcp-gateway-rules.json
+
+# Run locally
+uv run python main.py --help
+```
+
+### Add Local Gateway to MCP Client
+
+```bash
+# Claude Code CLI
+claude mcp add agent-mcp-gateway \
+  uv run --directory /path/to/agent-mcp-gateway python main.py
+
+# Or manual configuration
+{
+  "mcpServers": {
+    "agent-mcp-gateway": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/agent-mcp-gateway", "python", "main.py"],
+      "env": {
+        "GATEWAY_DEFAULT_AGENT": "developer"
+      }
+    }
+  }
+}
+```
+
+**Note:** The `--directory` flag tells `uv run` to change to the project directory before running, ensuring it finds `pyproject.toml` and the gateway configuration files.
 
 ### Project Structure
 
@@ -1210,6 +1027,68 @@ agent-mcp-gateway/
 └── pyproject.toml                # Python dependencies
 ```
 
+### Running in Development
+
+```bash
+# Run locally
+uv run python main.py
+
+# With debug mode
+uv run python main.py --debug
+```
+
+### Testing
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov=src --cov-report=term
+
+# Run specific test file
+uv run pytest tests/test_gateway.py -v
+
+# Run tests in watch mode
+uv run pytest-watch
+
+# Generate HTML coverage report
+uv run pytest --cov=src --cov-report=html
+open htmlcov/index.html
+```
+
+**Testing with MCP Inspector:**
+
+```bash
+# Basic usage (uses local config files)
+npx @modelcontextprotocol/inspector uv run python main.py
+
+# With debug mode
+npx @modelcontextprotocol/inspector uv run python main.py --debug
+
+# With custom config paths
+GATEWAY_MCP_CONFIG=.mcp.json \
+GATEWAY_RULES=.mcp-gateway-rules.json \
+GATEWAY_DEFAULT_AGENT=researcher \
+npx @modelcontextprotocol/inspector uv run python main.py
+```
+
+**Manual testing with FastMCP Client:**
+
+```bash
+uv run python -c "
+import asyncio
+from fastmcp import Client
+
+async def test():
+    async with Client('main.py') as client:
+        result = await client.call_tool('list_servers', {'agent_id': 'researcher'})
+        print(result)
+
+asyncio.run(test())
+"
+```
+
 ### Adding a New Feature
 
 1. **Update specs**: Document in relevant milestone file
@@ -1219,20 +1098,6 @@ agent-mcp-gateway/
 5. **Check coverage**: `uv run pytest --cov=src`
 6. **Update docs**: Document in README and relevant files
 7. **Commit**: Follow commit message format
-
-### Running in Development
-
-```bash
-# Run with verbose logging
-uv run python main.py
-
-# Run tests in watch mode
-uv run pytest-watch
-
-# Generate coverage report
-uv run pytest --cov=src --cov-report=html
-open htmlcov/index.html
-```
 
 ### Code Style
 
