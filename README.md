@@ -313,22 +313,24 @@ Defines per-agent access policies using deny-before-allow precedence:
   "agents": {
     "researcher": {
       "allow": {
-        "servers": ["brave-search"],
+        "servers": ["brave-search", "context7"],
         "tools": {
-          "brave-search": ["*"]
+          "brave-search": ["brave_web_search"]
         }
       }
     },
     "backend": {
       "allow": {
-        "servers": ["postgres"],
+        "servers": ["postgres", "laravel-boost"],
         "tools": {
-          "postgres": ["query", "list_*"]
+          "postgres": ["query", "list_tables", "list_schemas"],
+          "laravel-boost": ["get_*", "list_*", "read_*", "database_*", "search_*"]
         }
       },
       "deny": {
         "tools": {
-          "postgres": ["drop_*", "truncate_*"]
+          "postgres": ["drop_*", "delete_*"],
+          "laravel-boost": ["database_query", "tinker"]
         }
       }
     },
@@ -336,7 +338,23 @@ Defines per-agent access policies using deny-before-allow precedence:
       "allow": {
         "servers": ["*"],
         "tools": {
-          "*": ["*"]
+          "brave-search": ["brave_web_search"]
+        }
+      },
+      "deny": {
+        "servers": ["notion"],
+        "tools": {
+          "playwright": ["browser_type"]
+        }
+      }
+    },
+    "claude-desktop": {
+      "allow": {
+        "servers": ["context7", "brave-search", "notion", "playwright"]
+      },
+      "deny": {
+        "tools": {
+          "playwright": ["browser_type", "browser_close_all", "launch_*"]
         }
       }
     },
@@ -352,7 +370,29 @@ Defines per-agent access policies using deny-before-allow precedence:
 }
 ```
 
-**Note on "default" Agent:** The special agent named "default" is used as a fallback when `agent_id` is not provided and `deny_on_missing_agent` is `false`. In this example, the default agent denies all servers, following the principle of least privilege. You can also use `GATEWAY_DEFAULT_AGENT` environment variable to specify a different default agent.
+**Agent Examples Explained:**
+
+**researcher** - Demonstrates implicit grant + explicit allow:
+- `brave-search`: ONLY `brave_web_search` tool (explicit allow narrows access)
+- `context7`: ALL tools (implicit grant - server allowed, no tool rules specified)
+
+**backend** - Demonstrates wildcard allows with deny-before-allow precedence:
+- `postgres`: ONLY `query`, `list_tables`, `list_schemas` (explicit allows); deny rules serve as safety net
+- `laravel-boost`: Wildcard allows (`get_*`, `list_*`, `read_*`, `database_*`, `search_*`) grant broad access, BUT `database_query` explicitly denied despite matching `database_*` wildcard (deny wins), and `tinker` blocked as safety measure
+
+**admin** - Demonstrates server wildcard + mixed access patterns:
+- `notion`: DENIED (server-level deny overrides wildcard server allow)
+- `brave-search`: ONLY `brave_web_search` (explicit restriction on one server)
+- `playwright`: ALL tools EXCEPT `browser_type` (implicit grant with explicit deny)
+- All other servers: ALL tools (implicit grant - no tool rules specified)
+
+**claude-desktop** - Demonstrates implicit grant with multiple deny types:
+- `context7`, `brave-search`, `notion`: ALL tools (implicit grant)
+- `playwright`: ALL tools EXCEPT `browser_type`, `browser_close_all`, and tools matching `launch_*` (implicit grant with explicit + wildcard denies)
+
+**default** - Principle of least privilege:
+- Used as fallback when `agent_id` not provided and `deny_on_missing_agent` is `false`
+- Denies all servers by default; use `GATEWAY_DEFAULT_AGENT` environment variable to specify a different default agent
 
 **Policy Precedence Order:**
 1. Explicit deny rules (highest priority)

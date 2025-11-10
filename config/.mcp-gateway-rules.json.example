@@ -7,27 +7,49 @@
     },
     "researcher": {
       "allow": {
-        "servers": ["brave-search"]
+        "servers": ["brave-search", "context7"],
+        "tools": {
+          "brave-search": ["brave_web_search"]
+        }
       }
     },
     "backend": {
       "allow": {
-        "servers": ["postgres", "filesystem"],
+        "servers": ["postgres", "laravel-boost"],
         "tools": {
-          "postgres": ["query", "list_*"],
-          "filesystem": ["read_*", "list_*"]
+          "postgres": ["query", "list_tables", "list_schemas"],
+          "laravel-boost": ["get_*", "list_*", "read_*", "database_*", "search_*"]
         }
       },
       "deny": {
         "tools": {
           "postgres": ["drop_*", "delete_*"],
-          "filesystem": ["write_*", "delete_*"]
+          "laravel-boost": ["database_query", "tinker"]
         }
       }
     },
     "admin": {
       "allow": {
-        "servers": ["*"]
+        "servers": ["*"],
+        "tools": {
+          "brave-search": ["brave_web_search"]
+        }
+      },
+      "deny": {
+        "servers": ["notion"],
+        "tools": {
+          "playwright": ["browser_type"]
+        }
+      }
+    },
+    "claude-desktop": {
+      "allow": {
+        "servers": ["context7", "brave-search", "notion", "playwright"]
+      },
+      "deny": {
+        "tools": {
+          "playwright": ["browser_type", "browser_close_all", "launch_*"]
+        }
       }
     }
   },
