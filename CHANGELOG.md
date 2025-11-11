@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2025-11-11
+
+### Fixed
+- MCP config hot reload now works correctly - `list_servers` immediately reflects configuration changes
+- Fixed architectural issue where `list_servers` read from stale module-level variable instead of ProxyManager
+- ProxyManager is now the single source of truth for server configuration state
+
+### Changed
+- `list_servers` now queries ProxyManager directly via `get_servers_config()` method
+- Added `ProxyManager.get_servers_config()` to expose current server configuration
+- Deprecated `update_mcp_config()` function (retained for backward compatibility with tests)
+
+### Technical
+- Removed 34 lines of unnecessary state synchronization code from hot reload callback
+- Simplified architecture by eliminating module-level state mirroring
+- Hot reload now works reliably without complex threading state synchronization
+
 ## [0.2.1] - 2025-11-11
 
 ### Fixed

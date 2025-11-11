@@ -7,6 +7,7 @@ import logging.handlers
 import os
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
 from .gateway import gateway, initialize_gateway
@@ -110,22 +111,13 @@ def on_mcp_config_changed(config_path: str) -> None:
     Args:
         config_path: Absolute path to the changed MCP config file
     """
-    import time
-
     # Record reload attempt
     with _reload_status_lock:
         _mcp_config_reload_status["last_attempt"] = datetime.now()
         _mcp_config_reload_status["attempt_count"] += 1
 
-    logger.debug(f"!!! CALLBACK TRIGGERED !!! on_mcp_config_changed called")
-    logger.debug(f"  - config_path: {config_path}")
-    logger.debug(f"  - current time: {time.time()}")
-    logger.debug(f"  - thread: {threading.current_thread().name}")
-
     logger.info(f"MCP server configuration file changed: {config_path}")
-    # Also print to stderr so user definitely sees it
     print(f"\n[HOT RELOAD] Detected change in MCP server config file: {config_path}", file=sys.stderr)
-    print(f"[HOT RELOAD] Timestamp: {datetime.now().isoformat()}", file=sys.stderr)
     print(f"[HOT RELOAD] Reloading and validating new configuration...", file=sys.stderr)
 
     try:
@@ -152,46 +144,59 @@ def on_mcp_config_changed(config_path: str) -> None:
 
         logger.info("MCP server configuration validated successfully")
 
+        # Apply environment variable substitution (reload_configs returns raw JSON)
+        from src.config import _substitute_env_vars
+        mcp_config = _substitute_env_vars(mcp_config)
+
+        # Track reload result (to be used after event loop cleanup)
+        reload_success = False
+        reload_error_msg = None
+
         # Reload ProxyManager (async operation - need to handle from sync callback)
-        # Since this callback runs in a watchdog thread and the gateway uses anyio,
-        # we create a new asyncio event loop to run the async reload operation
-        try:
-            # Create a new event loop for this thread
-            reload_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(reload_loop)
-
+        # Since this callback runs in a watchdog thread, we use concurrent.futures
+        # to run the async operation without conflicting with FastMCP's anyio event loop
+        def run_async_reload():
+            """Run async reload in a new thread with its own event loop."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                # Run the async reload in this loop
-                success, reload_error = reload_loop.run_until_complete(
-                    _proxy_manager.reload(mcp_config)
-                )
-
-                if success:
-                    logger.info("ProxyManager reloaded successfully")
-                    print(f"[HOT RELOAD] MCP server configuration reloaded successfully", file=sys.stderr)
-                    print(f"[HOT RELOAD] Proxy connections updated", file=sys.stderr)
-
-                    # Record success
-                    with _reload_status_lock:
-                        _mcp_config_reload_status["last_success"] = datetime.now()
-                        _mcp_config_reload_status["last_error"] = None
-                        _mcp_config_reload_status["success_count"] += 1
-                else:
-                    logger.error(f"ProxyManager reload failed: {reload_error}")
-                    logger.info("Keeping existing proxy connections")
-                    print(f"[HOT RELOAD] ERROR: Failed to reload proxy manager: {reload_error}", file=sys.stderr)
-
-                    # Record error
-                    with _reload_status_lock:
-                        _mcp_config_reload_status["last_error"] = f"ProxyManager reload failed: {reload_error}"
+                return loop.run_until_complete(_proxy_manager.reload(mcp_config))
             finally:
-                # Clean up the event loop
-                reload_loop.close()
+                loop.close()
+
+        try:
+            # Run the async operation in a separate thread to avoid event loop conflicts
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_async_reload)
+                success, reload_error = future.result(timeout=30.0)
+
+            reload_success = success
+            reload_error_msg = reload_error
+
+            if success:
+                logger.info("ProxyManager reloaded successfully")
+                print(f"[HOT RELOAD] MCP server configuration reloaded successfully", file=sys.stderr)
+                print(f"[HOT RELOAD] Proxy connections updated", file=sys.stderr)
+            else:
+                logger.error(f"ProxyManager reload failed: {reload_error}")
+                logger.info("Keeping existing proxy connections")
+                print(f"[HOT RELOAD] ERROR: Failed to reload proxy manager: {reload_error}", file=sys.stderr)
         except Exception as e:
             error_msg = f"Error running ProxyManager reload: {e}"
             logger.error(error_msg)
+            reload_error_msg = error_msg
+            reload_success = False
+
+        # Record reload success
+        if reload_success:
             with _reload_status_lock:
-                _mcp_config_reload_status["last_error"] = error_msg
+                _mcp_config_reload_status["last_success"] = datetime.now()
+                _mcp_config_reload_status["last_error"] = None
+                _mcp_config_reload_status["success_count"] += 1
+        else:
+            # Record error
+            with _reload_status_lock:
+                _mcp_config_reload_status["last_error"] = reload_error_msg if reload_error_msg else "Unknown error"
 
     except Exception as e:
         error_msg = f"Unexpected error reloading MCP server configuration: {e}"
@@ -211,22 +216,13 @@ def on_gateway_rules_changed(rules_path: str) -> None:
     Args:
         rules_path: Absolute path to the changed gateway rules file
     """
-    import time
-
     # Record reload attempt
     with _reload_status_lock:
         _gateway_rules_reload_status["last_attempt"] = datetime.now()
         _gateway_rules_reload_status["attempt_count"] += 1
 
-    logger.debug(f"!!! CALLBACK TRIGGERED !!! on_gateway_rules_changed called")
-    logger.debug(f"  - rules_path: {rules_path}")
-    logger.debug(f"  - current time: {time.time()}")
-    logger.debug(f"  - thread: {threading.current_thread().name}")
-
     logger.info(f"Gateway rules configuration file changed: {rules_path}")
-    # Also print to stderr so user definitely sees it
     print(f"\n[HOT RELOAD] Detected change in gateway rules file: {rules_path}", file=sys.stderr)
-    print(f"[HOT RELOAD] Timestamp: {datetime.now().isoformat()}", file=sys.stderr)
     print(f"[HOT RELOAD] Reloading and validating new rules...", file=sys.stderr)
 
     try:

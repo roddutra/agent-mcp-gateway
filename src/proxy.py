@@ -391,6 +391,17 @@ class ProxyManager:
         """
         return list(self._clients.keys())
 
+    def get_servers_config(self) -> dict:
+        """Get current MCP servers configuration.
+
+        Returns the mcpServers dictionary from the current configuration,
+        reflecting any hot-reload changes.
+
+        Returns:
+            Dictionary mapping server names to server configurations
+        """
+        return self._current_config.get("mcpServers", {})
+
     def _config_changed(self, server_name: str, new_mcp_config: dict) -> bool:
         """Check if a server's configuration has changed.
 

@@ -111,6 +111,43 @@ def get_default_agent_id() -> str | None:
     return _default_agent_id
 
 
+def update_mcp_config(new_mcp_config: dict) -> None:
+    """Update the gateway's MCP configuration after hot reload.
+
+    NOTE: This function is deprecated and no longer needed since list_servers
+    now queries ProxyManager directly. It's retained for backward compatibility
+    with existing tests.
+
+    Args:
+        new_mcp_config: New MCP servers configuration dictionary
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Defensive validation
+    if not isinstance(new_mcp_config, dict):
+        raise TypeError(f"Invalid config type: {type(new_mcp_config)}")
+
+    if "mcpServers" not in new_mcp_config:
+        raise KeyError("Config missing 'mcpServers' key")
+
+    global _mcp_config
+    old_servers = set(_mcp_config.get("mcpServers", {}).keys()) if _mcp_config else set()
+    new_servers = set(new_mcp_config.get("mcpServers", {}).keys())
+
+    # Log changes
+    added = new_servers - old_servers
+    removed = old_servers - new_servers
+
+    if added:
+        logger.info(f"MCP config update: Added servers: {added}")
+    if removed:
+        logger.info(f"MCP config update: Removed servers: {removed}")
+
+    # Update the module-level config
+    _mcp_config = new_mcp_config
+
+
 def _register_debug_tools():
     """Register debug-only tools when debug mode is enabled.
 
@@ -136,16 +173,18 @@ async def list_servers(
 
     # Get configurations from module-level storage
     policy_engine = _policy_engine
-    mcp_config = _mcp_config
+    proxy_manager = _proxy_manager
 
     if not policy_engine:
         raise RuntimeError("PolicyEngine not initialized in gateway state")
-    if not mcp_config:
-        raise RuntimeError("MCP configuration not initialized in gateway state")
+    if not proxy_manager:
+        raise RuntimeError("ProxyManager not initialized in gateway state")
 
     # Get servers this agent can access
     allowed_servers = policy_engine.get_allowed_servers(agent_id)
-    all_servers = mcp_config.get("mcpServers", {})
+
+    # Get current server list from ProxyManager (reflects hot-reload changes)
+    all_servers = proxy_manager.get_servers_config()
 
     # Build response
     server_list = []
@@ -521,10 +560,13 @@ async def get_gateway_status(
         except Exception:
             policy_state = {"error": "Failed to retrieve policy state"}
 
-    # Get available servers
+    # Get available servers from ProxyManager (reflects hot-reload changes)
     available_servers = []
-    if _mcp_config and "mcpServers" in _mcp_config:
-        available_servers = list(_mcp_config["mcpServers"].keys())
+    if _proxy_manager:
+        try:
+            available_servers = _proxy_manager.get_all_servers()
+        except Exception:
+            available_servers = []
 
     # Get config file paths from src/config.py
     config_paths = {}
