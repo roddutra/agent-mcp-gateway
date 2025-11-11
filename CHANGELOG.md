@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Improved `--init` command output with step-by-step setup instructions and formatted JSON example
+- Restructured README to prioritize end-user installation (uvx/PyPI) over local development
+- Enhanced policy configuration examples to demonstrate implicit grants and deny-before-allow precedence
+
+### Removed
+- Unused `examples/` directory with demo scripts and duplicate config files
+
 ## [0.2.0] - 2025-11-07
 
 ### Changed

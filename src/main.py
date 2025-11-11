@@ -378,10 +378,24 @@ def init_config_directory() -> None:
 
     print(f"\nConfiguration initialized!")
     print(f"Edit configs at: {config_dir}")
-    print(f"\nTo use these configs, run:")
-    print(f"  GATEWAY_MCP_CONFIG={dest_mcp} \\")
-    print(f"  GATEWAY_RULES={dest_rules} \\")
-    print(f"  agent-mcp-gateway")
+    print(f"\nNext steps:")
+    print(f"\n1. Configure your downstream MCP servers:")
+    print(f"   ~/.config/agent-mcp-gateway/mcp.json")
+    print(f"\n2. Configure gateway rules for agent access control:")
+    print(f"   ~/.config/agent-mcp-gateway/mcp-gateway-rules.json")
+    print(f"\n3. Add to your MCP client configuration:")
+    print(f'   {{')
+    print(f'     "mcpServers": {{')
+    print(f'       "agent-mcp-gateway": {{')
+    print(f'         "command": "uvx",')
+    print(f'         "args": ["agent-mcp-gateway"]')
+    print(f'       }}')
+    print(f'     }}')
+    print(f'   }}')
+    print(f"\n   Or with Claude Code:")
+    print(f"   claude mcp add agent-mcp-gateway uvx agent-mcp-gateway")
+    print(f"\nNote: Configs at ~/.config/agent-mcp-gateway/ are auto-discovered.")
+    print(f"      For custom paths, see: https://github.com/roddutra/agent-mcp-gateway#4-environment-variables-reference")
 
 
 def main():
