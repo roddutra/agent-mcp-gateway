@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-11-11
+
+### Fixed
+- Configuration file discovery now correctly checks `~/.config/agent-mcp-gateway/` directory (step 3 in search order)
+- Files created by `--init` command now use consistent dot-prefix naming (`.mcp.json`, `.mcp-gateway-rules.json`)
+- Fixed `--init` creating files in a location that would never be auto-discovered by the gateway
+
 ### Changed
 - Improved `--init` command output with step-by-step setup instructions and formatted JSON example
 - Restructured README to prioritize end-user installation (uvx/PyPI) over local development
 - Enhanced policy configuration examples to demonstrate implicit grants and deny-before-allow precedence
+- Standardized all config file names to use dot-prefix (`.mcp.json`, `.mcp-gateway-rules.json`) across all locations
 
 ### Removed
 - Unused `examples/` directory with demo scripts and duplicate config files

@@ -361,8 +361,8 @@ def init_config_directory() -> None:
     source_mcp = config_dir_path / ".mcp.json.example"
     source_rules = config_dir_path / ".mcp-gateway-rules.json.example"
 
-    dest_mcp = config_dir / "mcp.json"
-    dest_rules = config_dir / "mcp-gateway-rules.json"
+    dest_mcp = config_dir / ".mcp.json"
+    dest_rules = config_dir / ".mcp-gateway-rules.json"
 
     if source_mcp.exists():
         shutil.copy(source_mcp, dest_mcp)
@@ -380,9 +380,9 @@ def init_config_directory() -> None:
     print(f"Edit configs at: {config_dir}")
     print(f"\nNext steps:")
     print(f"\n1. Configure your downstream MCP servers:")
-    print(f"   ~/.config/agent-mcp-gateway/mcp.json")
+    print(f"   ~/.config/agent-mcp-gateway/.mcp.json")
     print(f"\n2. Configure gateway rules for agent access control:")
-    print(f"   ~/.config/agent-mcp-gateway/mcp-gateway-rules.json")
+    print(f"   ~/.config/agent-mcp-gateway/.mcp-gateway-rules.json")
     print(f"\n3. Add to your MCP client configuration:")
     print(f'   {{')
     print(f'     "mcpServers": {{')

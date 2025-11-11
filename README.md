@@ -96,10 +96,10 @@ After running `uvx agent-mcp-gateway --init` (see [Installation](#installation))
 
 ```bash
 # Define your downstream MCP servers
-nano ~/.config/agent-mcp-gateway/mcp.json
+nano ~/.config/agent-mcp-gateway/.mcp.json
 
 # Define agent access policies
-nano ~/.config/agent-mcp-gateway/mcp-gateway-rules.json
+nano ~/.config/agent-mcp-gateway/.mcp-gateway-rules.json
 ```
 
 See [Configuration](#configuration) section for detailed examples and [Configuration File Discovery](#configuration-file-discovery) for alternative file locations.
@@ -121,8 +121,8 @@ claude mcp add agent-mcp-gateway uvx agent-mcp-gateway
       "command": "uvx",
       "args": ["agent-mcp-gateway"],
       "env": {
-        "GATEWAY_MCP_CONFIG": "~/.config/agent-mcp-gateway/mcp.json",
-        "GATEWAY_RULES": "~/.config/agent-mcp-gateway/mcp-gateway-rules.json",
+        "GATEWAY_MCP_CONFIG": "~/.config/agent-mcp-gateway/.mcp.json",
+        "GATEWAY_RULES": "~/.config/agent-mcp-gateway/.mcp-gateway-rules.json",
         "GATEWAY_DEFAULT_AGENT": "developer"
       }
     }
@@ -215,16 +215,16 @@ agent-mcp-gateway --help
 
 The gateway searches for configuration files in this order:
 
-### MCP Server Config (mcp.json)
+### MCP Server Config (.mcp.json)
 1. `GATEWAY_MCP_CONFIG` environment variable (if set)
 2. `.mcp.json` in current directory
-3. `~/.config/agent-mcp-gateway/mcp.json` (home directory)
+3. `~/.config/agent-mcp-gateway/.mcp.json` (home directory)
 4. `./config/.mcp.json` (fallback)
 
-### Gateway Rules (mcp-gateway-rules.json)
+### Gateway Rules (.mcp-gateway-rules.json)
 1. `GATEWAY_RULES` environment variable (if set)
 2. `.mcp-gateway-rules.json` in current directory
-3. `~/.config/agent-mcp-gateway/mcp-gateway-rules.json` (home directory)
+3. `~/.config/agent-mcp-gateway/.mcp-gateway-rules.json` (home directory)
 4. `./config/.mcp-gateway-rules.json` (fallback)
 
 **Tip:** Use `agent-mcp-gateway --init` to create the home directory configs on first run.
@@ -954,8 +954,8 @@ The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is an int
 npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
 
 # With custom config paths
-GATEWAY_MCP_CONFIG=~/.config/agent-mcp-gateway/mcp.json \
-GATEWAY_RULES=~/.config/agent-mcp-gateway/mcp-gateway-rules.json \
+GATEWAY_MCP_CONFIG=~/.config/agent-mcp-gateway/.mcp.json \
+GATEWAY_RULES=~/.config/agent-mcp-gateway/.mcp-gateway-rules.json \
 GATEWAY_DEFAULT_AGENT=researcher \
 npx @modelcontextprotocol/inspector uvx agent-mcp-gateway
 

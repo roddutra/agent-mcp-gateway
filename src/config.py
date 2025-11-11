@@ -716,7 +716,8 @@ def get_mcp_config_path() -> str:
     Search order:
     1. GATEWAY_MCP_CONFIG environment variable (if set)
     2. .mcp.json in current working directory
-    3. ./config/.mcp.json (fallback)
+    3. ~/.config/agent-mcp-gateway/.mcp.json (home directory)
+    4. ./config/.mcp.json (fallback)
 
     Returns:
         Resolved path to .mcp.json configuration file
@@ -730,6 +731,11 @@ def get_mcp_config_path() -> str:
     if cwd_path.exists():
         return str(cwd_path.resolve())
 
+    # Check home directory
+    home_path = Path.home() / ".config" / "agent-mcp-gateway" / ".mcp.json"
+    if home_path.exists():
+        return str(home_path.resolve())
+
     # Fallback to config directory
     return str(Path("./config/.mcp.json").expanduser().resolve())
 
@@ -740,7 +746,8 @@ def get_gateway_rules_path() -> str:
     Search order:
     1. GATEWAY_RULES environment variable (if set)
     2. .mcp-gateway-rules.json in current working directory
-    3. ./config/.mcp-gateway-rules.json (fallback)
+    3. ~/.config/agent-mcp-gateway/.mcp-gateway-rules.json (home directory)
+    4. ./config/.mcp-gateway-rules.json (fallback)
 
     Returns:
         Resolved path to .mcp-gateway-rules.json configuration file
@@ -753,6 +760,11 @@ def get_gateway_rules_path() -> str:
     cwd_path = Path.cwd() / ".mcp-gateway-rules.json"
     if cwd_path.exists():
         return str(cwd_path.resolve())
+
+    # Check home directory
+    home_path = Path.home() / ".config" / "agent-mcp-gateway" / ".mcp-gateway-rules.json"
+    if home_path.exists():
+        return str(home_path.resolve())
 
     # Fallback to config directory
     return str(Path("./config/.mcp-gateway-rules.json").expanduser().resolve())
