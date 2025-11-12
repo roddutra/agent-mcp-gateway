@@ -31,7 +31,7 @@ When multiple MCP servers are configured in development environments (Claude Cod
 
 ### Core Concept
 
-The Agent MCP Gateway acts as a single MCP server that proxies to multiple downstream MCP servers based on configurable per-agent rules. Instead of loading thousands of tool definitions upfront, agents load only ~400 tokens of gateway tools and request specific tools on-demand.
+The Agent MCP Gateway acts as a single MCP server that proxies to multiple downstream MCP servers based on configurable per-agent rules. Instead of loading thousands of tool definitions upfront, agents load only ~2k tokens of gateway tools and request specific tools on-demand.
 
 **Key Innovation:** Invert the traditional MCP loading model:
 - **Traditional:** Load all tools upfront → Agent discovers what's available
@@ -39,7 +39,7 @@ The Agent MCP Gateway acts as a single MCP server that proxies to multiple downs
 
 ### Gateway Tools (Exposed to Agents)
 
-The gateway exposes only these tools to agents (total ~400 tokens vs 5,000-50,000+ for direct loading):
+The gateway exposes only these tools to agents (total ~2k tokens vs 5,000-50,000+ for direct loading):
 
 ```python
 # All tools accept optional agent_id parameter with configurable fallback
@@ -99,7 +99,7 @@ This minimal interface replaces loading all downstream tools upfront, allowing a
 
 **Scenario:** 10 MCP servers with 50 tools each
 - **Without Gateway:** Every agent loads 500 tool definitions (~25,000 tokens)
-- **With Gateway:** Every agent loads 3 gateway tools (~400 tokens)
+- **With Gateway:** Every agent loads 3 gateway tools (~2k tokens)
 - **Savings:** 98% context reduction, tools loaded only when needed
 
 ---
@@ -260,7 +260,7 @@ Codes: `DENIED_BY_POLICY`, `SERVER_UNAVAILABLE`, `TOOL_NOT_FOUND`, `INVALID_AGEN
 ### Multi-Agent Team
 ```
 Without Gateway: Each agent loads 10,000+ tokens
-With Gateway: Each agent loads 400 tokens
+With Gateway: Each agent loads 2k tokens
 
 Orchestrator → No tools
 Researcher → Search tools only  

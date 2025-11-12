@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.roddutra/agent-mcp-gateway",
+  "description": "MCP gateway: on-demand discovery, per-agent access control. 3 tools (~2k) proxy unlimited servers.",
+  "homepage": "https://github.com/roddutra/agent-mcp-gateway",
+  "version": "0.2.3",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "agent-mcp-gateway",
+      "version": "0.2.3",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

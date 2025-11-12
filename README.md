@@ -1,5 +1,7 @@
 # Agent MCP Gateway
 
+<!-- mcp-name: io.github.roddutra/agent-mcp-gateway -->
+
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) gateway that aggregates multiple MCP servers and provides policy-based access control for agents and subagents. Solves Claude Code's MCP context window waste by enabling on-demand tool discovery instead of loading all tool definitions upfront.
 
 ## Status
@@ -47,7 +49,7 @@ When multiple MCP servers are configured in development environments (Claude Cod
 
 The Agent MCP Gateway acts as a single MCP server that proxies to multiple downstream MCP servers based on configurable per-agent rules:
 
-- **3 gateway tools** load at startup (~400 tokens)
+- **3 gateway tools** load at startup (~2k tokens)
 - Agents discover and request specific tools on-demand
 - **90%+ context reduction**
 - Policy-based access control per agent/subagent
@@ -1160,7 +1162,7 @@ asyncio.run(test())
 ┌─────────────────────────────────────────────────────────┐
 │              Agent MCP Gateway                          │
 │  ┌───────────────────────────────────────────────────┐  │
-│  │  Gateway Tools (3 tools, ~400 tokens)             │  │
+│  │  Gateway Tools (3 tools, ~2k tokens)             │  │
 │  │  • list_servers                                   │  │
 │  │  • get_server_tools                               │  │
 │  │  • execute_tool                                   │  │
@@ -1210,7 +1212,7 @@ asyncio.run(test())
 
 ### Performance Characteristics
 
-- **Context reduction**: 90%+ (400 tokens vs 5,000-50,000+)
+- **Context reduction**: 90%+ (2k tokens vs 5,000-50,000+)
 - **Added latency**: <100ms (P95)
 - **Gateway overhead**: <30ms per operation
 - **Session isolation**: Automatic per-request

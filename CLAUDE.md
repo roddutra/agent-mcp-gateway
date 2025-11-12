@@ -8,7 +8,7 @@ Agent MCP Gateway is an MCP server that acts as a proxy/gateway to multiple down
 
 **Core Problem:** When multiple MCP servers are configured, all tools from all servers (5,000-50,000+ tokens) load into every agent's context at startup. This wastes 80-95% of context on unused tools.
 
-**Solution:** Gateway exposes only 3 minimal tools (~400 tokens) that allow agents to discover and request specific tools on-demand based on configurable access rules.
+**Solution:** Gateway exposes only 3 minimal tools (~2k tokens) that allow agents to discover and request specific tools on-demand based on configurable access rules.
 
 ## Tech Stack
 
@@ -53,7 +53,7 @@ See README.md for production MCP client configuration.
 ### Gateway Model
 
 ```
-Agent → Gateway (3 tools, ~400 tokens) → Policy Engine → Downstream MCP Servers (100s of tools)
+Agent → Gateway (3 tools, ~2k tokens) → Policy Engine → Downstream MCP Servers (100s of tools)
          ↓
       Audit Log
 ```

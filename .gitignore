@@ -17,6 +17,9 @@ config/.mcp.json
 # MCP Gateway rules configurations
 .mcp-gateway-rules.json
 config/.mcp-gateway-rules.json
+# MCP Registry authentication tokens
+.mcpregistry_github_token
+.mcpregistry_registry_token
 # Keep example and test configs
 !config/*.example
 !config/*.test.json

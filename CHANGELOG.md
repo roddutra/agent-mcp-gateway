@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2025-11-12
+
+### Added
+- MCP Registry publishing support via automated GitHub Actions workflow
+- `server.json` configuration for MCP Registry metadata
+- MCP Registry identifier in README.md for PyPI ownership validation
+- `.github/workflows/publish-mcp-registry.yml` workflow for automated registry publishing
+- MCP Registry token files to `.gitignore` for security
+
+### Changed
+- Gateway tools now report ~2k tokens (updated from ~400 tokens) to reflect actual usage
+- Updated documentation with MCP Registry publishing guide
+
 ## [0.2.2] - 2025-11-11
 
 ### Fixed
