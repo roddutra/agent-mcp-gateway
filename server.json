@@ -3,7 +3,6 @@
   "name": "io.github.roddutra/agent-mcp-gateway",
   "title": "Agent MCP Gateway",
   "description": "On-demand tool discovery for all your MCPs and per-subagent MCP controls to preserve context window.",
-  "websiteUrl": "https://github.com/roddutra/agent-mcp-gateway",
   "repository": {
     "url": "https://github.com/roddutra/agent-mcp-gateway",
     "source": "github"
