@@ -1,8 +1,13 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.roddutra/agent-mcp-gateway",
-  "description": "MCP gateway: on-demand discovery, per-agent access control. 3 tools (~2k) proxy unlimited servers.",
-  "homepage": "https://github.com/roddutra/agent-mcp-gateway",
+  "title": "Agent MCP Gateway",
+  "description": "On-demand tool discovery for all your MCPs and per-subagent MCP controls to preserve context window.",
+  "websiteUrl": "https://github.com/roddutra/agent-mcp-gateway",
+  "repository": {
+    "url": "https://github.com/roddutra/agent-mcp-gateway",
+    "source": "github"
+  },
   "version": "0.2.3",
   "packages": [
     {
@@ -11,7 +16,33 @@
       "version": "0.2.3",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "environmentVariables": [
+        {
+          "name": "GATEWAY_MCP_CONFIG",
+          "description": "Path to MCP servers configuration file (default: .mcp.json)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GATEWAY_RULES",
+          "description": "Path to gateway access control rules file (default: .mcp-gateway-rules.json)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GATEWAY_DEFAULT_AGENT",
+          "description": "Default agent ID when not provided in tool calls",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GATEWAY_DEBUG",
+          "description": "Enable debug mode and expose diagnostic tools (default: false)",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
     }
   ]
 }

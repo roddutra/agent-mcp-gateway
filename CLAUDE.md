@@ -42,11 +42,11 @@ See README.md for production MCP client configuration.
 **CRITICAL:** NEVER bump version in `pyproject.toml` without explicit user approval.
 
 **When version is updated:**
-- Update BOTH `pyproject.toml` and `CHANGELOG.md` together
+- Update ALL version files together: `pyproject.toml`, `server.json` (root `version` and `packages[0].version`), and `CHANGELOG.md`
 - Run `uv lock` to sync lockfile
 - DO NOT release without user approval
 
-**To release:** See `docs/release-process.md` for complete workflow. Key: pushing the git tag (not just commits) triggers automated PyPI publishing via GitHub Actions.
+**To release:** See `docs/release-process.md` for complete workflow. Key: pushing the git tag (not just commits) triggers automated PyPI, MCP Registry, and GitHub release publishing via GitHub Actions.
 
 ## Architecture
 
