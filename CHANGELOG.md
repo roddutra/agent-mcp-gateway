@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2025-11-12
+
+### Changed
+- Enhanced MCP Registry metadata with title, repository info, and environment variable documentation
+- Condensed release process documentation (57% reduction) while maintaining all key information
+- Improved documentation readability for both human and AI consumers
+
 ## [0.2.3] - 2025-11-12
 
 ### Added
