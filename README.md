@@ -4,6 +4,10 @@
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) gateway that aggregates multiple MCP servers and provides policy-based access control for agents and subagents. Solves Claude Code's MCP context window waste by enabling on-demand tool discovery instead of loading all tool definitions upfront.
 
+<a href="https://glama.ai/mcp/servers/@roddutra/agent-mcp-gateway">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@roddutra/agent-mcp-gateway/badge" />
+</a>
+
 ## Status
 
 - ✅ **M0: Foundation** - Configuration, policy engine, audit logging, `list_servers` tool
