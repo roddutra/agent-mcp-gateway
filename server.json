@@ -7,12 +7,12 @@
     "url": "https://github.com/roddutra/agent-mcp-gateway",
     "source": "github"
   },
-  "version": "0.2.4",
+  "version": "0.2.5",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "agent-mcp-gateway",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "transport": {
         "type": "stdio"
       },

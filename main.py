@@ -473,6 +473,24 @@ def main():
         try:
             gateway.run()
         finally:
+            # Graceful shutdown: close all downstream MCP server connections
+            # This ensures subprocesses are properly terminated per MCP spec
+            if _proxy_manager:
+                logger.info("Initiating graceful shutdown of downstream servers...")
+                print("\n[SHUTDOWN] Closing downstream MCP server connections...", file=sys.stderr)
+                try:
+                    # Run async cleanup in a new event loop (we're in sync context)
+                    shutdown_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(shutdown_loop)
+                    try:
+                        shutdown_loop.run_until_complete(_proxy_manager.close_all_connections())
+                        print("[SHUTDOWN] All downstream servers closed", file=sys.stderr)
+                    finally:
+                        shutdown_loop.close()
+                except Exception as e:
+                    logger.error(f"Error during graceful shutdown: {e}")
+                    print(f"[SHUTDOWN] Warning: Error during shutdown: {e}", file=sys.stderr)
+
             # Clean up ConfigWatcher on shutdown
             if _config_watcher:
                 logger.info("Stopping configuration file watcher...")

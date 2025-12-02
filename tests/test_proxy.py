@@ -671,23 +671,28 @@ class TestCloseConnections:
 
     @pytest.mark.asyncio
     async def test_close_all_connections(self):
-        """Test closing all connections."""
+        """Test closing all connections calls close() on each client."""
         manager = ProxyManager()
-        config = {
-            "mcpServers": {
-                "server1": {"command": "npx", "args": ["test1"]},
-                "server2": {"url": "https://example.com"}
-            }
-        }
-        manager.initialize_connections(config)
 
-        # Set some connection status
-        manager._connection_status["server1"] = True
-        manager._connection_errors["server2"] = "Some error"
+        # Create mock clients with close() method
+        mock_client1 = Mock()
+        mock_client1.close = AsyncMock()
+        mock_client2 = Mock()
+        mock_client2.close = AsyncMock()
+
+        # Manually set up clients
+        manager._clients = {"server1": mock_client1, "server2": mock_client2}
+        manager._connection_status = {"server1": True, "server2": False}
+        manager._connection_errors = {"server2": "Some error"}
 
         await manager.close_all_connections()
 
-        # Status should be cleared
+        # Each client's close() should have been called
+        mock_client1.close.assert_called_once()
+        mock_client2.close.assert_called_once()
+
+        # All state should be cleared
+        assert len(manager._clients) == 0
         assert len(manager._connection_status) == 0
         assert len(manager._connection_errors) == 0
 
@@ -700,6 +705,60 @@ class TestCloseConnections:
         await manager.close_all_connections()
 
         assert len(manager._clients) == 0
+
+    @pytest.mark.asyncio
+    async def test_close_all_connections_handles_errors(self):
+        """Test that close_all_connections continues even if some clients fail to close."""
+        manager = ProxyManager()
+
+        # Create mock clients - one that succeeds, one that fails
+        mock_client1 = Mock()
+        mock_client1.close = AsyncMock(side_effect=Exception("Close failed"))
+        mock_client2 = Mock()
+        mock_client2.close = AsyncMock()
+
+        manager._clients = {"failing": mock_client1, "success": mock_client2}
+        manager._connection_status = {"failing": True, "success": True}
+        manager._connection_errors = {}
+
+        # Should not raise, should continue to close other clients
+        await manager.close_all_connections()
+
+        # Both clients should have been attempted
+        mock_client1.close.assert_called_once()
+        mock_client2.close.assert_called_once()
+
+        # State should still be cleared
+        assert len(manager._clients) == 0
+        assert len(manager._connection_status) == 0
+
+    @pytest.mark.asyncio
+    async def test_close_all_connections_with_initialized_clients(self):
+        """Test closing properly initialized clients."""
+        manager = ProxyManager()
+        config = {
+            "mcpServers": {
+                "server1": {"command": "npx", "args": ["test1"]},
+                "server2": {"url": "https://example.com"}
+            }
+        }
+
+        # Create mock client with close method
+        mock_client = Mock()
+        mock_client.close = AsyncMock()
+
+        with patch('src.proxy.Client', return_value=mock_client):
+            manager.initialize_connections(config)
+
+            # Verify clients were created
+            assert len(manager._clients) == 2
+
+            await manager.close_all_connections()
+
+        # All state should be cleared
+        assert len(manager._clients) == 0
+        assert len(manager._connection_status) == 0
+        assert len(manager._connection_errors) == 0
 
 
 class TestLazyConnectionStrategy:

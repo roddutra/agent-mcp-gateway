@@ -641,20 +641,41 @@ class ProxyManager:
         return True, None
 
     async def close_all_connections(self):
-        """Close all Client connections.
+        """Gracefully shutdown all downstream MCP server connections.
 
-        This is a cleanup method for graceful shutdown.
-        Note: Since we use disconnected clients with context managers,
-        there are no persistent connections to close. This method is
-        provided for API completeness and future extensibility.
+        Follows MCP spec for stdio transport:
+        1. Close input stream to child process
+        2. Wait for server to exit (2s timeout)
+        3. Send SIGTERM/SIGKILL if not exited
+
+        This method iterates through all clients and calls close() on each,
+        which triggers the proper transport cleanup sequence.
         """
-        logger.info("Closing all proxy connections")
+        logger.info("Initiating graceful shutdown of all downstream servers")
 
-        # With disconnected clients, each 'async with' creates and closes
-        # its own session, so no explicit cleanup needed
+        server_count = len(self._clients)
+        closed_count = 0
+        error_count = 0
+
+        for server_name, client in list(self._clients.items()):
+            try:
+                logger.debug(f"Closing client for server: {server_name}")
+                # Client.close() triggers transport.close() -> disconnect()
+                # For stdio transports, this terminates the subprocess
+                await client.close()
+                closed_count += 1
+                logger.info(f"Closed connection to: {server_name}")
+            except Exception as e:
+                error_count += 1
+                logger.warning(f"Error closing client for {server_name}: {e}")
+                # Continue with other clients - one failure shouldn't prevent others
 
         # Clear internal state
+        self._clients.clear()
         self._connection_status.clear()
         self._connection_errors.clear()
 
-        logger.info(f"Closed connections for {len(self._clients)} servers")
+        logger.info(
+            f"Graceful shutdown complete: {closed_count}/{server_count} servers closed"
+            + (f", {error_count} errors" if error_count else "")
+        )

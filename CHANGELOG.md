@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2025-12-02
+
+### Fixed
+- Graceful shutdown of downstream MCP servers - stdio subprocesses are now properly terminated when gateway exits
+- Gateway now follows MCP specification for stdio shutdown: close stdin, wait 2s, SIGTERM, then SIGKILL
+
+### Added
+- `ProxyManager.close_all_connections()` now iterates through all clients and calls `client.close()` to trigger proper transport cleanup
+- Shutdown logging to stderr for visibility during gateway termination
+- Unit tests for graceful shutdown behavior in `tests/test_graceful_shutdown.py`
+
 ## [0.2.4] - 2025-11-12
 
 ### Changed
